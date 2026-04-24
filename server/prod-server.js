@@ -64,7 +64,10 @@ app.prepare().then(() => {
     }));
     socket.on('teacher:create', gate(socket, ({ chainCount = 2, password = '' } = {}, cb) => {
       const required = process.env.TEACHER_PASSWORD;
-      if (required && password !== required) {
+      if (!required) {
+        return cb && cb({ ok: false, error: 'Server chưa cấu hình TEACHER_PASSWORD. Liên hệ admin.' });
+      }
+      if (password !== required) {
         return cb && cb({ ok: false, error: 'Sai password giảng viên.' });
       }
       const roomCode = nanoid(6).toUpperCase();
