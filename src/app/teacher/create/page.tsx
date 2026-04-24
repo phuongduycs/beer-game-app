@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSocket } from '@/lib/socket-client';
 
@@ -14,12 +14,27 @@ export default function TeacherCreate() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [chainCount, setChainCount] = useState(2);
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [remember, setRemember] = useState(true);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('bg_teacher_pw');
+    if (saved) setPassword(saved);
+  }, []);
 
   function createRoom() {
     setLoading(true);
+    setError('');
     const socket = getSocket();
-    socket.emit('teacher:create', { chainCount }, (payload: { roomCode: string }) => {
-      router.push(`/teacher/dashboard/${payload.roomCode}`);
+    socket.emit('teacher:create', { chainCount, password }, (res: { ok: boolean; roomCode?: string; error?: string }) => {
+      setLoading(false);
+      if (!res.ok || !res.roomCode) {
+        setError(res.error || 'Không tạo được phòng.');
+        return;
+      }
+      if (remember && password) localStorage.setItem('bg_teacher_pw', password);
+      router.push(`/teacher/dashboard/${res.roomCode}`);
     });
   }
 
@@ -28,19 +43,28 @@ export default function TeacherCreate() {
       <div className="text-center mb-6">
         <div className="text-5xl mb-2">👨‍🏫</div>
         <h1 className="text-3xl font-bold">Tạo phòng mới</h1>
-        <p className="text-gray-500 text-sm mt-1">Cấu hình theo quy mô lớp</p>
+        <p className="text-gray-500 text-sm mt-1">Dành cho giảng viên</p>
       </div>
 
       <div className="bg-white rounded-2xl shadow-lg p-6 space-y-5">
+        <div>
+          <label className="block font-semibold mb-2">🔒 Password giảng viên</label>
+          <input type="password" value={password} onChange={e => setPassword(e.target.value)}
+            placeholder="Nhập password"
+            className="w-full border border-gray-300 rounded-lg px-3 py-3 text-lg" />
+          <label className="flex items-center gap-2 mt-2 text-sm text-gray-600">
+            <input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)} />
+            Nhớ password trên trình duyệt này
+          </label>
+        </div>
+
         <div>
           <label className="block font-semibold mb-2">Số chuỗi cung ứng</label>
           <div className="grid grid-cols-2 gap-2">
             {CHAIN_OPTIONS.map(opt => (
               <button key={opt.n} onClick={() => setChainCount(opt.n)}
                 className={`text-left border-2 rounded-xl p-3 transition-smooth ${
-                  chainCount === opt.n
-                    ? 'border-purple-500 bg-purple-50'
-                    : 'border-gray-200 hover:border-purple-300'
+                  chainCount === opt.n ? 'border-purple-500 bg-purple-50' : 'border-gray-200 hover:border-purple-300'
                 }`}>
                 <div className="font-bold text-lg">{opt.label}</div>
                 <div className="text-xs text-gray-600">{opt.sub}</div>
@@ -49,9 +73,15 @@ export default function TeacherCreate() {
             ))}
           </div>
           <div className="mt-2 text-xs text-gray-500">
-            Mỗi chuỗi có 4 nhóm (R/W/D/F), mỗi nhóm tối đa <b>8 SV</b>. Tối đa <b>{chainCount * 4 * 8} SV</b> trong phòng.
+            Mỗi chuỗi 4 vai (R/W/D/F), mỗi vai tối đa <b>8 SV</b>. Tối đa <b>{chainCount * 4 * 8} SV</b> trong phòng.
           </div>
         </div>
+
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 text-sm p-3 rounded-lg">
+            ⚠️ {error}
+          </div>
+        )}
 
         <button onClick={createRoom} disabled={loading}
           className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold py-4 rounded-xl hover:from-purple-700 hover:to-blue-700 disabled:from-gray-400 disabled:to-gray-400 shadow-md text-lg transition-smooth">

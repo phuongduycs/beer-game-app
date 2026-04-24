@@ -69,14 +69,18 @@ app.prepare().then(() => {
       if (state) socket.emit('state:update', state);
     }));
 
-    socket.on('teacher:create', gate(socket, ({ chainCount = 2 } = {}, cb) => {
+    socket.on('teacher:create', gate(socket, ({ chainCount = 2, password = '' } = {}, cb) => {
+      const required = process.env.TEACHER_PASSWORD;
+      if (required && password !== required) {
+        return cb && cb({ ok: false, error: 'Sai password giảng viên.' });
+      }
       const roomCode = nanoid(6).toUpperCase();
       const state = engine.createGame(roomCode, chainCount);
       state.teacherSocketId = socket.id;
       games.set(roomCode, state);
       socket.join(roomCode);
       socket.data.roomCode = roomCode;
-      cb && cb({ roomCode });
+      cb && cb({ ok: true, roomCode });
       broadcastState(roomCode);
     }));
 
