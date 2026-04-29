@@ -30,6 +30,9 @@ export function StrategyPanel({ role, runtime }: { role: RoleKey; runtime: RoleR
     if (trend < -2) warnings.push({ type: 'info', text: `Nhu cầu đang giảm (${recent.join('→')}). Cẩn thận thừa hàng.` });
   }
 
+  // Sắp xếp ship items theo ticksLeft tăng dần
+  const upcoming = [...runtime.shipmentsInbound].sort((a, b) => a.ticksLeft - b.ticksLeft);
+
   return (
     <div className="bg-white rounded-lg shadow p-4 space-y-3">
       <h3 className="font-bold">📊 Tính toán & gợi ý</h3>
@@ -52,6 +55,39 @@ export function StrategyPanel({ role, runtime }: { role: RoleKey; runtime: RoleR
           <div className="font-bold text-lg">{supplyLine}</div>
         </div>
       </div>
+
+      {/* Lịch giao hàng sắp tới */}
+      {upcoming.length > 0 ? (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+          <div className="text-sm font-semibold text-blue-800 mb-2">🚚 Hàng sắp về kho</div>
+          <div className="space-y-1.5">
+            {upcoming.map((item, i) => {
+              const arrivalWeek = runtime.week + item.ticksLeft;
+              const weeksAway = item.ticksLeft;
+              return (
+                <div key={i} className="flex items-center justify-between bg-white rounded px-2 py-1.5 text-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
+                      Tuần {arrivalWeek}
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      ({weeksAway === 1 ? 'tuần tới' : `còn ${weeksAway} tuần`})
+                    </span>
+                  </div>
+                  <span className="font-bold text-blue-700">+{item.amount} đơn vị</span>
+                </div>
+              );
+            })}
+          </div>
+          <div className="text-xs text-gray-500 mt-2">
+            Tổng: <b className="text-blue-700">{inTransit}</b> đơn vị đang vận chuyển
+          </div>
+        </div>
+      ) : (
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm text-gray-500 text-center">
+          🚚 Không có hàng đang về. Đặt sớm nếu kho thấp!
+        </div>
+      )}
 
       {runtime.status === 'deciding' && (
         <div className="bg-purple-50 border border-purple-200 rounded p-3">
@@ -84,9 +120,9 @@ export function StrategyPanel({ role, runtime }: { role: RoleKey; runtime: RoleR
       )}
 
       {runtime.status === 'deciding' && curDemand > 0 && (
-        <div className="text-xs text-gray-600 bg-gray-50 rounded p-2">
-          <b>💡 Dự đoán:</b> Đơn bạn chốt hôm nay sẽ về kho sau <b>2 tuần</b>.
-          Ví dụ nếu đặt {suggested}, đến tuần {runtime.week + 3} sẽ nhận được.
+        <div className="text-xs text-gray-700 bg-purple-50 border border-purple-200 rounded p-2">
+          <b>💡 Dự đoán:</b> Đơn bạn chốt tuần này (tuần {runtime.week + 1}) sẽ về kho ở <b className="text-purple-800">tuần {runtime.week + 3}</b>.
+          {' '}Ví dụ đặt {suggested} → tuần {runtime.week + 3} nhận được {suggested} đơn vị.
         </div>
       )}
     </div>

@@ -76,7 +76,8 @@ function computeAIOrder(role, r, incomingDemand) {
   return clampOrder(expected + Math.max(0, target - supply) / 3);
 }
 
-function processRoleWeek(r, incomingDemand) {
+function processRoleWeek(r, incomingDemand, role) {
+  // 1. Nhận hàng từ pipeline
   let received = 0;
   const nextQueue = [];
   for (const item of r.shipmentsInbound) {
@@ -86,10 +87,28 @@ function processRoleWeek(r, incomingDemand) {
   r.shipmentsInbound = nextQueue;
   r.inventory += received;
   const netAtStart = r.inventory - r.backlog;
+
+  let shipped;
   const totalDemand = incomingDemand + r.backlog;
-  const shipped = Math.min(r.inventory, totalDemand);
-  r.inventory -= shipped;
-  r.backlog = totalDemand - shipped;
+
+  if (role === 'retailer') {
+    // Retailer phục vụ KHÁCH HÀNG cuối → ship tối đa có thể, phần thiếu thành backlog
+    shipped = Math.min(r.inventory, totalDemand);
+    r.inventory -= shipped;
+    r.backlog = totalDemand - shipped;
+  } else {
+    // W/D/F ship cho ĐỐI TÁC trong chuỗi → cam kết giao đủ
+    // Nếu kho thiếu, kho âm = vai đó tự chịu phạt thiếu hàng
+    shipped = totalDemand;
+    r.inventory -= shipped;
+    if (r.inventory < 0) {
+      r.backlog = -r.inventory;
+      r.inventory = 0;
+    } else {
+      r.backlog = 0;
+    }
+  }
+
   const holdingCost = r.inventory * HOLDING_COST;
   const shortageCost = r.backlog * BACKLOG_COST;
   const weekCost = holdingCost + shortageCost;
@@ -145,7 +164,7 @@ function commitDecision(state, chain, role, value, aiDecided) {
   if (!r.inbox) return { ok: false, error: 'Inbox rỗng.' };
 
   const incomingDemand = r.inbox.value;
-  const meta = processRoleWeek(r, incomingDemand);
+  const meta = processRoleWeek(r, incomingDemand, role);
   routeShipment(state, chain, role, meta.shipped);
 
   const decidedVal = clampOrder(value);
