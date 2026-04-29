@@ -79,9 +79,13 @@ app.prepare().then(() => {
       cb && cb({ ok: true, roomCode });
       broadcastState(roomCode);
     }));
-    socket.on('teacher:join', gate(socket, ({ roomCode }, cb) => {
+    socket.on('teacher:join', gate(socket, ({ roomCode, password = '' }, cb) => {
+      const required = process.env.TEACHER_PASSWORD;
+      if (required && password !== required) {
+        return cb && cb({ ok: false, error: 'Sai password giảng viên.' });
+      }
       const state = games.get(roomCode);
-      if (!state) return cb && cb({ ok: false });
+      if (!state) return cb && cb({ ok: false, error: 'Phòng không tồn tại hoặc đã hết hạn.' });
       state.teacherSocketId = socket.id;
       socket.join(roomCode);
       socket.data.roomCode = roomCode;
@@ -159,7 +163,11 @@ app.prepare().then(() => {
     socket.on('disconnect', () => {
       const roomCode = socket.data.roomCode;
       const state = roomCode && games.get(roomCode);
-      if (state) { engine.removePlayer(state, socket.id); broadcastState(roomCode); }
+      if (state) {
+        if (state.teacherSocketId === socket.id) state.teacherSocketId = null;
+        engine.markPlayerOffline(state, socket.id);
+        broadcastState(roomCode);
+      }
     });
   });
 

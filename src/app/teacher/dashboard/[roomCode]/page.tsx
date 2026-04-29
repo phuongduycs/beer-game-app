@@ -16,8 +16,32 @@ export default function TeacherDashboard() {
   const socket = getSocket();
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
   const [demandInputs, setDemandInputs] = useState<Record<string, number>>({});
+  const [authError, setAuthError] = useState('');
 
-  useEffect(() => { socket.emit('teacher:join', { roomCode }, () => {}); }, [roomCode, socket]);
+  useEffect(() => {
+    const password = localStorage.getItem('bg_teacher_pw') || '';
+    socket.emit('teacher:join', { roomCode, password }, (res: { ok: boolean; error?: string }) => {
+      if (!res.ok) {
+        setAuthError(res.error || 'Không vào được phòng');
+      } else {
+        // Lưu room code để landing page nhớ
+        localStorage.setItem('bg_teacher_room', roomCode);
+      }
+    });
+  }, [roomCode, socket]);
+
+  if (authError) {
+    return (
+      <div className="max-w-md mx-auto p-8">
+        <div className="bg-red-50 border border-red-200 p-6 rounded-xl">
+          <div className="text-3xl mb-2">🚫</div>
+          <div className="font-bold text-red-800 mb-2">Không vào được phòng</div>
+          <div className="text-sm text-red-700 mb-4">{authError}</div>
+          <a href="/teacher/create" className="inline-block bg-purple-600 text-white px-4 py-2 rounded-lg">Tạo phòng mới</a>
+        </div>
+      </div>
+    );
+  }
 
   if (!state) return <div className="p-8">Đang kết nối...</div>;
 

@@ -228,13 +228,34 @@ function addPlayer(state, socketId, name, chain, role) {
   if (!cleanName) return { ok: false, error: 'Tên không hợp lệ.' };
   const c = chainOf(state, chain);
   const r = c[role];
+
+  // Reconnect: nếu có player cùng tên đang offline → cập nhật socket id, online lại
+  const existing = r.players.find(p => p.name === cleanName);
+  if (existing) {
+    if (existing.online) return { ok: false, error: 'Tên này đang online trong nhóm. Đổi tên khác.' };
+    const oldId = existing.id;
+    existing.id = socketId;
+    existing.online = true;
+    if (r.captainId === oldId) r.captainId = socketId;
+    return { ok: true, player: existing, reconnected: true };
+  }
+
   if (r.players.length >= MAX_PLAYERS_PER_GROUP) return { ok: false, error: `Vai này đã đủ ${MAX_PLAYERS_PER_GROUP} người.` };
-  if (r.players.some(p => p.name === cleanName)) return { ok: false, error: 'Tên này đã tồn tại trong nhóm.' };
   const isCaptain = r.players.length === 0;
   const player = { id: socketId, name: cleanName, chain, role, isCaptain, online: true, joinedAt: Date.now() };
   r.players.push(player);
   if (isCaptain) r.captainId = player.id;
   return { ok: true, player };
+}
+
+function markPlayerOffline(state, socketId) {
+  for (const chain of activeChainsOf(state)) {
+    const c = chainOf(state, chain);
+    for (const role of ROLES) {
+      const p = c[role].players.find(pl => pl.id === socketId);
+      if (p) p.online = false;
+    }
+  }
 }
 
 function removePlayer(state, socketId) {
@@ -347,5 +368,6 @@ module.exports = {
   setSuggestion, submitByCaptain, sendDemand, resetGame,
   tick, addChatMessage, startGame, rotateCaptainIfNeeded,
   kickPlayer, sanitizeName, sanitizeChat, clampOrder,
+  markPlayerOffline,
   CHAINS, ROLES,
 };

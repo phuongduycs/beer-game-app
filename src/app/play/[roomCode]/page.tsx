@@ -27,6 +27,24 @@ export default function PlayPage() {
     const s = JSON.parse(raw) as PlayerSession;
     if (s.roomCode !== roomCode) { router.push('/join'); return; }
     setSession(s);
+
+    // Auto reconnect — emit player:join để server gắn socket mới với player record cũ
+    const socket = getSocket();
+    socket.emit('player:join', {
+      roomCode: s.roomCode, name: s.name, chain: s.chain, role: s.role,
+    }, (res: { ok: boolean; playerId?: string; error?: string }) => {
+      if (!res.ok) {
+        alert('Không vào lại được phòng: ' + (res.error || 'lỗi không rõ'));
+        sessionStorage.removeItem('bg_player');
+        router.push('/join');
+        return;
+      }
+      if (res.playerId) {
+        const updated = { ...s, playerId: res.playerId };
+        sessionStorage.setItem('bg_player', JSON.stringify(updated));
+        setSession(updated);
+      }
+    });
   }, [roomCode, router]);
 
   useEffect(() => {
@@ -182,12 +200,19 @@ export default function PlayPage() {
           <TipsPanel role={session.role} />
 
           <div className="bg-white rounded-lg shadow p-4">
-            <h3 className="font-bold mb-2">Thành viên nhóm ({myRole.players.length}/8)</h3>
+            <h3 className="font-bold mb-2">Thành viên nhóm ({myRole.players.filter(p => p.online).length} online / {myRole.players.length} tổng)</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
               {myRole.players.map(p => (
-                <div key={p.id} className={`text-center border rounded p-2 text-sm ${p.isCaptain ? 'border-yellow-400 bg-yellow-50' : 'border-gray-200'}`}>
+                <div key={p.id}
+                  className={`text-center border rounded p-2 text-sm relative ${
+                    p.isCaptain ? 'border-yellow-400 bg-yellow-50' : 'border-gray-200'
+                  } ${!p.online ? 'opacity-50' : ''}`}>
+                  <div className="absolute top-1 right-1 flex items-center gap-0.5 text-xs">
+                    <span className={`w-2 h-2 rounded-full ${p.online ? 'bg-green-500' : 'bg-gray-400'}`}></span>
+                  </div>
                   {p.isCaptain && <div className="text-xs">👑</div>}
                   <div className="font-semibold truncate">{p.name}</div>
+                  {!p.online && <div className="text-xs text-gray-400">offline</div>}
                 </div>
               ))}
             </div>

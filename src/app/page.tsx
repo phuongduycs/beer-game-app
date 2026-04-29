@@ -1,21 +1,57 @@
+'use client';
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 
 export default function Home() {
+  const [savedRoom, setSavedRoom] = useState<string | null>(null);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('bg_teacher_room');
+    if (saved) setSavedRoom(saved);
+  }, []);
+
+  function clearSavedRoom() {
+    localStorage.removeItem('bg_teacher_room');
+    setSavedRoom(null);
+  }
+
   return (
     <div className="min-h-screen">
-      {/* Hero */}
       <div className="bg-gradient-to-br from-purple-600 via-blue-600 to-emerald-600 text-white">
         <div className="max-w-5xl mx-auto px-6 py-16">
           <div className="text-6xl mb-4">🍺</div>
           <h1 className="text-5xl md:text-6xl font-bold mb-3">Beer Game — IUH</h1>
           <p className="text-lg text-white/90 max-w-2xl">
-            Mô phỏng chuỗi cung ứng 4 vai cho sinh viên. 40 SV / 2 chuỗi thi đấu / 8 nhóm / 5 SV mỗi nhóm.
+            Mô phỏng chuỗi cung ứng 4 vai cho sinh viên. Tối đa 5 chuỗi × 4 nhóm × 8 SV = 160 SV/phòng.
           </p>
         </div>
       </div>
 
-      {/* CTA cards */}
-      <div className="max-w-5xl mx-auto px-6 -mt-10">
+      {/* Resume banner cho GV */}
+      {savedRoom && (
+        <div className="max-w-5xl mx-auto px-6 -mt-6">
+          <div className="bg-yellow-50 border-2 border-yellow-300 rounded-xl p-4 flex items-center justify-between flex-wrap gap-3">
+            <div>
+              <div className="font-semibold text-yellow-900">🔄 Phòng đã tạo gần đây</div>
+              <div className="text-sm text-yellow-700">
+                Mã: <span className="font-mono font-bold">{savedRoom}</span>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Link href={`/teacher/dashboard/${savedRoom}`}
+                className="bg-yellow-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-yellow-700">
+                Vào lại dashboard →
+              </Link>
+              <button onClick={clearSavedRoom}
+                className="bg-white border border-yellow-300 px-3 py-2 rounded-lg text-sm hover:bg-yellow-100">
+                Xoá
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="max-w-5xl mx-auto px-6 mt-6">
         <div className="grid md:grid-cols-2 gap-6">
           <Link href="/join"
             className="group bg-white rounded-2xl shadow-lg p-8 border-t-4 border-blue-500 card-hover">
@@ -39,7 +75,6 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Game info */}
       <div className="max-w-5xl mx-auto px-6 py-12 grid md:grid-cols-3 gap-4">
         <div className="bg-white rounded-xl shadow-sm p-5 border-l-4 border-emerald-500">
           <div className="text-2xl mb-1">⏱</div>
@@ -55,44 +90,6 @@ export default function Home() {
           <div className="text-2xl mb-1">💰</div>
           <div className="font-bold mb-1">Tồn $1 • Thiếu $2</div>
           <div className="text-sm text-gray-600">Cân bằng giữa tồn kho và đáp ứng nhu cầu.</div>
-        </div>
-      </div>
-
-      {/* Luật chơi chi tiết */}
-      <div className="max-w-5xl mx-auto px-6 pb-12">
-        <div className="bg-white rounded-xl shadow-sm p-6">
-          <h3 className="font-bold text-lg mb-3">Luật chơi chi tiết</h3>
-          <div className="grid md:grid-cols-2 gap-4 text-sm text-gray-700">
-            <div>
-              <div className="font-semibold mb-1">📦 Khởi đầu</div>
-              <ul className="list-disc pl-5 space-y-1 text-gray-600">
-                <li>Tồn kho: Retailer 12, Wholesaler 18, Distributor 25, Factory 33</li>
-                <li>Chưa có hàng đang về, chưa có đơn đang đến</li>
-              </ul>
-            </div>
-            <div>
-              <div className="font-semibold mb-1">🔄 Pipeline</div>
-              <ul className="list-disc pl-5 space-y-1 text-gray-600">
-                <li>Mỗi link chỉ có 1 token đơn cùng lúc</li>
-                <li>R không gửi đơn mới nếu W chưa chốt đơn cũ</li>
-              </ul>
-            </div>
-            <div>
-              <div className="font-semibold mb-1">👑 Captain</div>
-              <ul className="list-disc pl-5 space-y-1 text-gray-600">
-                <li>SV vào đầu = captain, được quyền chốt</li>
-                <li>4 SV còn lại gợi ý qua chat</li>
-                <li>Rotate mỗi 5 tuần hoàn thành</li>
-              </ul>
-            </div>
-            <div>
-              <div className="font-semibold mb-1">🤖 AI & Reset</div>
-              <ul className="list-disc pl-5 space-y-1 text-gray-600">
-                <li>Hết 90s mà chưa chốt → AI (Anchor & Adjust) chốt thay</li>
-                <li>GV có thể Reset game bất cứ lúc nào</li>
-              </ul>
-            </div>
-          </div>
         </div>
       </div>
     </div>
