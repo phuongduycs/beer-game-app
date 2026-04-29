@@ -118,6 +118,13 @@ app.prepare().then(() => {
       broadcastState(state.roomCode);
     }));
 
+    socket.on('teacher:endGame', gate(socket, () => {
+      const state = gameByTeacher(socket.id);
+      if (!state) return;
+      state.status = 'ended';
+      broadcastState(state.roomCode);
+    }));
+
     socket.on('teacher:kickPlayer', gate(socket, ({ playerId }) => {
       const state = gameByTeacher(socket.id);
       if (!state || !playerId) return;

@@ -7,6 +7,7 @@ import { RoleCard } from '@/components/RoleCard';
 import { BullwhipChart } from '@/components/BullwhipChart';
 import type { ChainKey, RoleKey, ChainRuntime, GameState, Player } from '@/lib/types';
 import { ROLES } from '@/lib/types';
+import { exportGameToCSV, downloadCSV } from '@/lib/exportGame';
 
 type TabKey = 'overview' | 'members' | ChainKey;
 
@@ -51,6 +52,17 @@ export default function TeacherDashboard() {
 
   function startGame() { socket.emit('teacher:startGame'); }
   function reset() { if (confirm('Reset toàn bộ game về tuần 1? (Giữ SV)')) socket.emit('teacher:reset'); }
+  function endGame() {
+    if (confirm('Kết thúc trò chơi? Các vai sẽ không quyết tiếp được. Bạn vẫn xuất được kết quả sau đó.')) {
+      socket.emit('teacher:endGame');
+    }
+  }
+  function exportResults() {
+    if (!state) return;
+    const csv = exportGameToCSV(state);
+    const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+    downloadCSV(`beer-game-${roomCode}-${stamp}.csv`, csv);
+  }
   function sendDemand(chain: ChainKey, value: number) {
     socket.emit('teacher:sendDemand', { chain, value }, (res: { ok: boolean; error?: string }) => {
       if (!res.ok) alert(res.error || 'Không gửi được');
@@ -98,12 +110,22 @@ export default function TeacherDashboard() {
             ▶ Start Game
           </button>
         )}
-        {!lobby && (
-          <button onClick={reset}
-            className="bg-rose-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-rose-700 shadow-md">
-            ⟲ Reset
-          </button>
+        {!lobby && !gameOver && (
+          <>
+            <button onClick={endGame}
+              className="bg-orange-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-orange-700 shadow-md">
+              🏁 Kết thúc
+            </button>
+            <button onClick={reset}
+              className="bg-rose-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-rose-700 shadow-md">
+              ⟲ Reset
+            </button>
+          </>
         )}
+        <button onClick={exportResults}
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700 shadow-md">
+          📥 Xuất CSV
+        </button>
       </header>
 
       {/* Tabs */}

@@ -54,7 +54,7 @@ export function TipsPanel({ role }: { role: RoleKey }) {
             </ul>
           </div>
           <div className="bg-blue-50 border border-blue-200 rounded p-2 text-xs">
-            <b>Luật cốt lõi:</b> Lead time 2 tuần • Tồn $1/tuần • Thiếu $2/tuần • Captain cố định 1 người chốt trong 90s, hết giờ AI thay • Chỉ 1 đơn / link tại 1 thời điểm.
+            <b>Luật cốt lõi:</b> Lead time 2 tuần • Tồn $1/tuần • Thiếu $2/tuần • Captain cố định 1 người chốt trong 3:30, hết giờ AI thay • Chỉ 1 đơn / link tại 1 thời điểm.
           </div>
         </div>
       )}

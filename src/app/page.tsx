@@ -79,7 +79,7 @@ export default function Home() {
         <div className="bg-white rounded-xl shadow-sm p-5 border-l-4 border-emerald-500">
           <div className="text-2xl mb-1">⏱</div>
           <div className="font-bold mb-1">Pipeline ASYNC</div>
-          <div className="text-sm text-gray-600">Mỗi vai có 90s để quyết. Hết giờ → AI chốt thay.</div>
+          <div className="text-sm text-gray-600">Mỗi vai có 3:30 để quyết. Hết giờ → AI chốt thay.</div>
         </div>
         <div className="bg-white rounded-xl shadow-sm p-5 border-l-4 border-amber-500">
           <div className="text-2xl mb-1">🚚</div>

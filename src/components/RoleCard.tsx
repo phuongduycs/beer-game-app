@@ -19,7 +19,7 @@ const STATUS_BADGE: Record<string, { label: string; cls: string; icon: string }>
   awaiting_upstream: { label: 'Chờ upstream',  cls: 'bg-yellow-100 text-yellow-800 border-yellow-300',     icon: '⏸' },
 };
 
-const TIMEOUT_MS = 90_000;
+const TIMEOUT_MS = 210_000;
 
 function formatTimer(deadline: number | null): string {
   if (!deadline) return '';
@@ -65,7 +65,7 @@ export function RoleCard({
         <div className="mb-3">
           <div className="flex justify-between text-xs mb-1">
             <span className="text-orange-700 font-semibold">⏱ Còn {formatTimer(runtime.deadline)}</span>
-            <span className="text-gray-400">/ 1:30</span>
+            <span className="text-gray-400">/ 3:30</span>
           </div>
           <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
             <div

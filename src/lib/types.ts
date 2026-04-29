@@ -19,7 +19,7 @@ export const INITIAL_INVENTORY: Record<RoleKey, number> = {
 
 export const HOLDING_COST = 1.0;
 export const BACKLOG_COST = 2.0;
-export const DECISION_TIMEOUT_MS = 90_000;
+export const DECISION_TIMEOUT_MS = 210_000; // 3 phút 30 giây
 export const SHIP_DELAY_TICKS = 2;
 export const MAX_PLAYERS_PER_GROUP = 8;
 
