@@ -98,15 +98,17 @@ function processRoleWeek(r, incomingDemand, role) {
     r.inventory -= shipped;
     r.backlog = totalDemand - shipped;
   } else {
-    // W/D/F ship cho ĐỐI TÁC trong chuỗi → cam kết giao đủ
-    // Nếu kho thiếu, kho âm = vai đó tự chịu phạt thiếu hàng
-    shipped = totalDemand;
-    r.inventory -= shipped;
-    if (r.inventory < 0) {
-      r.backlog = -r.inventory;
-      r.inventory = 0;
-    } else {
+    // W/D/F → ship CHÍNH XÁC số downstream đặt (đặt bao nhiêu nhận bấy nhiêu).
+    // Backlog là deficit nội bộ (vai trả phí thiếu hàng), receive auto-clear bL,
+    // KHÔNG cộng bL vào số ship cho downstream.
+    shipped = incomingDemand;
+    const netAfterShip = (r.inventory - r.backlog) - shipped;
+    if (netAfterShip >= 0) {
+      r.inventory = netAfterShip;
       r.backlog = 0;
+    } else {
+      r.inventory = 0;
+      r.backlog = -netAfterShip;
     }
   }
 
