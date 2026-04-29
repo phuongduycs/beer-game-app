@@ -229,10 +229,18 @@ function addPlayer(state, socketId, name, chain, role) {
   const c = chainOf(state, chain);
   const r = c[role];
 
-  // Reconnect: nếu có player cùng tên đang offline → cập nhật socket id, online lại
+  // Reconnect / no-op nếu player đã tồn tại
   const existing = r.players.find(p => p.name === cleanName);
   if (existing) {
-    if (existing.online) return { ok: false, error: 'Tên này đang online trong nhóm. Đổi tên khác.' };
+    // Cùng socket → đây là re-emit lúc navigate, không phải user khác → no-op
+    if (existing.id === socketId) {
+      return { ok: true, player: existing };
+    }
+    // Khác socket nhưng player đang online → có thể user khác đang dùng tên này
+    if (existing.online) {
+      return { ok: false, error: 'Tên này đang online trong nhóm. Đổi tên khác.' };
+    }
+    // Offline → reconnect: gắn socket mới
     const oldId = existing.id;
     existing.id = socketId;
     existing.online = true;
