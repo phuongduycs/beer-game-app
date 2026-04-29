@@ -89,7 +89,7 @@ export default function Home() {
         <div className="bg-white rounded-xl shadow-sm p-5 border-l-4 border-rose-500">
           <div className="text-2xl mb-1">💰</div>
           <div className="font-bold mb-1">Tồn $1 • Thiếu $2</div>
-          <div className="text-sm text-gray-600">Cân bằng giữa tồn kho và đáp ứng nhu cầu.</div>
+          <div className="text-sm text-gray-600">Captain cố định, đổi khi bị kick/rời nhóm.</div>
         </div>
       </div>
     </div>

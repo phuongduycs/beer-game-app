@@ -42,7 +42,8 @@ function createChainRuntime() {
   return c;
 }
 
-function createGame(roomCode, chainCount = 2, totalWeeks = 30, captainRotateEvery = 5) {
+function createGame(roomCode, chainCount = 2, totalWeeks = 30, captainRotateEvery = 0) {
+  // captainRotateEvery = 0 → KHÔNG xoay vòng captain, giữ cố định 1 người
   const n = Math.max(1, Math.min(CHAINS.length, Math.round(chainCount)));
   const activeChains = CHAINS.slice(0, n);
   const chains = {};
@@ -179,6 +180,19 @@ function commitDecision(state, chain, role, value, aiDecided) {
   r.decidedValue = decidedVal;
   const flushed = tryFlush(state, chain, role);
   if (flushed) cascadeFlush(state, chain, role);
+
+  // Rotate captain MỘT LẦN ngay sau khi vừa hoàn thành tuần là bội của captainRotateEvery
+  if (state.captainRotateEvery > 0
+      && r.week > 0
+      && r.week % state.captainRotateEvery === 0
+      && r.players.length >= 2) {
+    const currIdx = r.players.findIndex(p => p.isCaptain);
+    r.players.forEach(p => (p.isCaptain = false));
+    const nextIdx = (currIdx + 1) % r.players.length;
+    r.players[nextIdx].isCaptain = true;
+    r.captainId = r.players[nextIdx].id;
+  }
+
   checkGameEnd(state);
   return { ok: true };
 }
@@ -355,20 +369,8 @@ function startGame(state) {
 }
 
 function rotateCaptainIfNeeded(state) {
-  for (const chain of activeChainsOf(state)) {
-    const c = chainOf(state, chain);
-    for (const role of ROLES) {
-      const r = c[role];
-      if (r.players.length < 2) continue;
-      if (r.week > 0 && r.week % state.captainRotateEvery === 0 && r.status === 'idle') {
-        const currIdx = r.players.findIndex(p => p.isCaptain);
-        r.players.forEach(p => (p.isCaptain = false));
-        const nextIdx = (currIdx + 1) % r.players.length;
-        r.players[nextIdx].isCaptain = true;
-        r.captainId = r.players[nextIdx].id;
-      }
-    }
-  }
+  // No-op — rotation đã chuyển vào commitDecision (chạy 1 lần ngay khi chốt xong)
+  // Giữ hàm để server cũ không crash nếu cache chưa update
 }
 
 module.exports = {
