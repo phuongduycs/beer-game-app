@@ -199,22 +199,46 @@ export default function PlayPage() {
 
           <TipsPanel role={session.role} />
 
-          <div className="bg-white rounded-lg shadow p-4">
-            <h3 className="font-bold mb-2">Thành viên nhóm ({myRole.players.filter(p => p.online).length} online / {myRole.players.length} tổng)</h3>
+          <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-200">
+            <div className="flex items-baseline justify-between mb-3">
+              <h3 className="font-bold text-base">👥 Thành viên nhóm</h3>
+              <div className="text-xs text-gray-500">
+                <span className="text-emerald-600 font-semibold">{myRole.players.filter(p => p.online).length}</span>
+                <span> online</span>
+                <span className="text-gray-400"> / {myRole.players.length} tổng / max 8</span>
+              </div>
+            </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-              {myRole.players.map(p => (
-                <div key={p.id}
-                  className={`text-center border rounded p-2 text-sm relative ${
-                    p.isCaptain ? 'border-yellow-400 bg-yellow-50' : 'border-gray-200'
-                  } ${!p.online ? 'opacity-50' : ''}`}>
-                  <div className="absolute top-1 right-1 flex items-center gap-0.5 text-xs">
-                    <span className={`w-2 h-2 rounded-full ${p.online ? 'bg-green-500' : 'bg-gray-400'}`}></span>
+              {myRole.players.map((p, idx) => {
+                const isMe = p.id === session.playerId;
+                return (
+                  <div key={p.id}
+                    className={`relative rounded-lg p-3 text-sm border-2 transition-smooth ${
+                      p.isCaptain ? 'border-yellow-400 bg-yellow-50' :
+                      isMe ? 'border-blue-400 bg-blue-50' :
+                      'border-gray-200 bg-white'
+                    } ${!p.online ? 'opacity-60' : ''}`}>
+                    <div className="absolute top-1.5 right-1.5">
+                      <span className={`w-2 h-2 rounded-full inline-block ${p.online ? 'bg-emerald-500' : 'bg-gray-400'}`}></span>
+                    </div>
+                    <div className="text-xs text-gray-400 mb-0.5">#{idx + 1}</div>
+                    {p.isCaptain && <div className="text-base leading-none mb-1">👑</div>}
+                    <div className="font-semibold break-words">{p.name}{isMe && <span className="text-blue-600 text-xs"> (bạn)</span>}</div>
+                    <div className={`text-xs mt-0.5 ${p.online ? 'text-emerald-600' : 'text-gray-400'}`}>
+                      {p.online ? 'online' : 'offline'}
+                    </div>
                   </div>
-                  {p.isCaptain && <div className="text-xs">👑</div>}
-                  <div className="font-semibold truncate">{p.name}</div>
-                  {!p.online && <div className="text-xs text-gray-400">offline</div>}
+                );
+              })}
+              {/* Empty slots */}
+              {Array.from({ length: Math.max(0, 8 - myRole.players.length) }).map((_, i) => (
+                <div key={`empty-${i}`} className="rounded-lg p-3 text-sm border-2 border-dashed border-gray-200 text-center text-gray-300 flex items-center justify-center">
+                  Trống
                 </div>
               ))}
+            </div>
+            <div className="mt-2 text-xs text-gray-500">
+              👑 Captain (chốt lệnh) • <span className="text-blue-600">Bạn</span> {myRole.captainId === session.playerId ? '(captain)' : '(thành viên)'}
             </div>
           </div>
         </div>

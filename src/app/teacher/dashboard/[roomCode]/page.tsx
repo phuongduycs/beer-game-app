@@ -8,7 +8,7 @@ import { BullwhipChart } from '@/components/BullwhipChart';
 import type { ChainKey, RoleKey, ChainRuntime, GameState, Player } from '@/lib/types';
 import { ROLES } from '@/lib/types';
 
-type TabKey = 'overview' | ChainKey;
+type TabKey = 'overview' | 'members' | ChainKey;
 
 export default function TeacherDashboard() {
   const { roomCode } = useParams<{ roomCode: string }>();
@@ -65,6 +65,10 @@ export default function TeacherDashboard() {
     totalByChain[k] = ROLES.reduce((s, r) => s + state.chains[k][r].cost, 0);
   });
   const grandTotal = Object.values(totalByChain).reduce((a, b) => a + b, 0);
+  const totalPlayers = activeChains.reduce((sum, k) =>
+    sum + ROLES.reduce((s, r) => s + state.chains[k][r].players.length, 0), 0);
+  const onlinePlayers = activeChains.reduce((sum, k) =>
+    sum + ROLES.reduce((s, r) => s + state.chains[k][r].players.filter(p => p.online).length, 0), 0);
 
   return (
     <div className="max-w-[1400px] mx-auto p-4">
@@ -107,6 +111,9 @@ export default function TeacherDashboard() {
         <TabBtn active={activeTab === 'overview'} onClick={() => setActiveTab('overview')}>
           📊 Tổng quan
         </TabBtn>
+        <TabBtn active={activeTab === 'members'} onClick={() => setActiveTab('members')}>
+          👥 Thành viên ({totalPlayers})
+        </TabBtn>
         {activeChains.map(k => (
           <TabBtn key={k} active={activeTab === k} onClick={() => setActiveTab(k)}>
             🔗 Chuỗi {k} (${totalByChain[k].toFixed(0)})
@@ -128,9 +135,162 @@ export default function TeacherDashboard() {
         </div>
       )}
 
+      {/* All members tab */}
+      {activeTab === 'members' && (
+        <AllMembers state={state} activeChains={activeChains} kick={kick} totalPlayers={totalPlayers} onlinePlayers={onlinePlayers} />
+      )}
+
       {/* Single chain detail */}
-      {activeTab !== 'overview' && (
+      {activeTab !== 'overview' && activeTab !== 'members' && (
         <ChainDetail chain={activeTab as ChainKey} state={state} kick={kick} />
+      )}
+    </div>
+  );
+}
+
+function AllMembers({ state, activeChains, kick, totalPlayers, onlinePlayers }: {
+  state: GameState; activeChains: ChainKey[];
+  kick: (id: string, name: string) => void;
+  totalPlayers: number; onlinePlayers: number;
+}) {
+  const ROLE_ICONS = { retailer: '🏪', wholesaler: '🏢', distributor: '🚚', factory: '🏭' } as const;
+  const ROLE_VI: Record<RoleKey, string> = {
+    retailer: 'Bán lẻ', wholesaler: 'Bán sỉ', distributor: 'Phân phối', factory: 'Nhà máy',
+  };
+  const [view, setView] = useState<'group' | 'table'>('group');
+
+  // Dòng phẳng cho table view
+  const allRows: { chain: ChainKey; role: RoleKey; player: import('@/lib/types').Player; idx: number }[] = [];
+  activeChains.forEach(chain => {
+    ROLES.forEach(role => {
+      state.chains[chain][role].players.forEach((player, idx) => {
+        allRows.push({ chain, role, player, idx: idx + 1 });
+      });
+    });
+  });
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white rounded-xl shadow-sm p-4 flex items-center gap-6 flex-wrap">
+        <div>
+          <div className="text-xs text-gray-500 uppercase">Tổng tham gia</div>
+          <div className="text-3xl font-bold text-purple-700">{totalPlayers}</div>
+        </div>
+        <div>
+          <div className="text-xs text-gray-500 uppercase">Đang online</div>
+          <div className="text-3xl font-bold text-emerald-600">{onlinePlayers}</div>
+        </div>
+        <div>
+          <div className="text-xs text-gray-500 uppercase">Offline</div>
+          <div className="text-3xl font-bold text-gray-400">{totalPlayers - onlinePlayers}</div>
+        </div>
+        <div className="flex-1" />
+        <div className="flex gap-1 border border-gray-300 rounded-lg p-1">
+          <button onClick={() => setView('group')}
+            className={`px-3 py-1 rounded text-sm ${view === 'group' ? 'bg-purple-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
+            Theo nhóm
+          </button>
+          <button onClick={() => setView('table')}
+            className={`px-3 py-1 rounded text-sm ${view === 'table' ? 'bg-purple-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
+            Bảng phẳng (điểm danh)
+          </button>
+        </div>
+      </div>
+
+      {view === 'group' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {activeChains.map(chain => (
+            <div key={chain} className="bg-white rounded-xl shadow-sm p-4">
+              <div className="font-bold text-lg mb-3 text-purple-700">🔗 Chuỗi {chain}</div>
+              <div className="space-y-3">
+                {ROLES.map(role => {
+                  const r = state.chains[chain][role];
+                  const onlineCount = r.players.filter(p => p.online).length;
+                  return (
+                    <div key={role} className="border border-gray-200 rounded-lg p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="font-semibold text-sm">
+                          {ROLE_ICONS[role]} {ROLE_VI[role]}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {onlineCount}/{r.players.length} online
+                        </div>
+                      </div>
+                      {r.players.length === 0 ? (
+                        <div className="text-xs text-gray-400 italic">Chưa có SV nào</div>
+                      ) : (
+                        <div className="space-y-1">
+                          {r.players.map((p, idx) => (
+                            <div key={p.id} className={`flex items-center justify-between gap-2 px-2 py-1.5 rounded text-sm ${p.online ? 'bg-emerald-50' : 'bg-gray-50 opacity-70'}`}>
+                              <div className="flex items-center gap-2 flex-1 min-w-0">
+                                <span className="text-xs text-gray-400 flex-shrink-0">#{idx + 1}</span>
+                                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${p.online ? 'bg-emerald-500' : 'bg-gray-400'}`}></span>
+                                {p.isCaptain && <span title="Captain" className="flex-shrink-0">👑</span>}
+                                <span className="break-words font-medium">{p.name}</span>
+                              </div>
+                              <button onClick={() => kick(p.id, p.name)}
+                                className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 text-xs px-2 py-0.5 rounded flex-shrink-0">
+                                Kick
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {view === 'table' && (
+        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b">
+                <tr>
+                  <th className="px-3 py-2 text-left font-semibold">#</th>
+                  <th className="px-3 py-2 text-left font-semibold">Trạng thái</th>
+                  <th className="px-3 py-2 text-left font-semibold">Họ và tên</th>
+                  <th className="px-3 py-2 text-left font-semibold">Chuỗi</th>
+                  <th className="px-3 py-2 text-left font-semibold">Vai</th>
+                  <th className="px-3 py-2 text-left font-semibold">Vị trí</th>
+                  <th className="px-3 py-2 text-center font-semibold">Captain</th>
+                  <th className="px-3 py-2 text-center font-semibold">Hành động</th>
+                </tr>
+              </thead>
+              <tbody>
+                {allRows.length === 0 && (
+                  <tr><td colSpan={8} className="px-3 py-8 text-center text-gray-400">Chưa có SV nào tham gia</td></tr>
+                )}
+                {allRows.map((row, i) => (
+                  <tr key={row.player.id} className={`border-b hover:bg-gray-50 ${row.player.online ? '' : 'opacity-60'}`}>
+                    <td className="px-3 py-2 text-gray-500">{i + 1}</td>
+                    <td className="px-3 py-2">
+                      <span className={`inline-flex items-center gap-1 ${row.player.online ? 'text-emerald-600' : 'text-gray-400'}`}>
+                        <span className={`w-2 h-2 rounded-full ${row.player.online ? 'bg-emerald-500' : 'bg-gray-400'}`}></span>
+                        {row.player.online ? 'Online' : 'Offline'}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 font-medium">{row.player.name}</td>
+                    <td className="px-3 py-2 font-mono">{row.chain}</td>
+                    <td className="px-3 py-2">{ROLE_ICONS[row.role]} {ROLE_VI[row.role]}</td>
+                    <td className="px-3 py-2 text-gray-500">#{row.idx}</td>
+                    <td className="px-3 py-2 text-center">{row.player.isCaptain ? '👑' : ''}</td>
+                    <td className="px-3 py-2 text-center">
+                      <button onClick={() => kick(row.player.id, row.player.name)}
+                        className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 text-xs px-2 py-1 rounded">
+                        Kick
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
     </div>
   );
