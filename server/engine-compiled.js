@@ -132,7 +132,8 @@ function tryFlush(state, chain, role) {
 
   const up = c[upKey];
   if (up.status === 'idle' && up.inbox === null) {
-    up.inbox = { value: r.decidedValue };
+    // Lưu placedAtDownstreamWeek để tính ngày arrival cố định cho ship-back
+    up.inbox = { value: r.decidedValue, placedAtDownstreamWeek: r.week };
     up.status = 'deciding';
     up.deadline = Date.now() + DECISION_TIMEOUT_MS;
     up.suggestions = [];
@@ -156,7 +157,16 @@ function cascadeFlush(state, chain, role) {
 function routeShipment(state, chain, role, shippedAmount) {
   const dsKey = DOWNSTREAM[role];
   if (!dsKey) return;
-  chainOf(state, chain)[dsKey].shipmentsInbound.push({ ticksLeft: SHIP_DELAY_TICKS, amount: shippedAmount });
+  const c = chainOf(state, chain);
+  const downstream = c[dsKey];
+  const r = c[role];
+  // Đảm bảo arrival = placedAtDownstreamWeek + 2 (lead time cố định 2 tuần với downstream)
+  const placedAt = (r.inbox && r.inbox.placedAtDownstreamWeek != null)
+    ? r.inbox.placedAtDownstreamWeek
+    : downstream.week;
+  const targetArrival = placedAt + SHIP_DELAY_TICKS;
+  const ticksLeft = Math.max(1, targetArrival - downstream.week);
+  downstream.shipmentsInbound.push({ ticksLeft, amount: shippedAmount });
 }
 
 function commitDecision(state, chain, role, value, aiDecided) {
@@ -212,7 +222,7 @@ function sendDemand(state, chain, value) {
   if (r.status !== 'idle' || r.inbox !== null) return { ok: false, error: 'Retailer đang bận.' };
   if (r.week >= state.totalWeeks) return { ok: false, error: 'Chuỗi đã hoàn thành.' };
   const v = clampOrder(value);
-  r.inbox = { value: v };
+  r.inbox = { value: v, placedAtDownstreamWeek: r.week };
   r.status = 'deciding';
   r.deadline = Date.now() + DECISION_TIMEOUT_MS;
   r.suggestions = [];
