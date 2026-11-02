@@ -1,6 +1,6 @@
 'use client';
 import type { RoleKey, RoleRuntime } from '@/lib/types';
-import { ROLE_LABELS, arrivingThisWeek } from '@/lib/types';
+import { ROLE_LABELS, arrivingThisWeek, formatClock } from '@/lib/types';
 
 const COLORS: Record<RoleKey, { border: string; text: string; bg: string; ring: string }> = {
   retailer: { border: 'border-blue-500', text: 'text-blue-600', bg: 'bg-blue-50', ring: 'ring-blue-200' },
@@ -19,24 +19,23 @@ const STATUS_BADGE: Record<string, { label: string; cls: string; icon: string }>
   awaiting_upstream: { label: 'Chờ upstream',  cls: 'bg-yellow-100 text-yellow-800 border-yellow-300',     icon: '⏸' },
 };
 
-const TIMEOUT_MS = 210_000;
-
 function formatTimer(deadline: number | null): string {
   if (!deadline) return '';
   const s = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
   return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
 }
 
-function timerRatio(deadline: number | null): number {
+function timerRatio(deadline: number | null, decisionSeconds: number): number {
   if (!deadline) return 0;
-  return Math.max(0, Math.min(1, (deadline - Date.now()) / TIMEOUT_MS));
+  return Math.max(0, Math.min(1, (deadline - Date.now()) / (decisionSeconds * 1000)));
 }
 
 export function RoleCard({
-  role, runtime, compact = false,
+  role, runtime, decisionSeconds, compact = false,
 }: {
   role: RoleKey;
   runtime: RoleRuntime;
+  decisionSeconds: number;
   compact?: boolean;
 }) {
   const c = COLORS[role];
@@ -47,7 +46,7 @@ export function RoleCard({
   const arriving = arrivingThisWeek(runtime);
   const shownStock = isDeciding ? net + arriving : net;
   const stockLabel = isDeciding ? `Tồn có sẵn tuần ${runtime.week + 1}` : runtime.week > 0 ? `Tồn cuối tuần ${runtime.week}` : 'Tồn đầu kỳ';
-  const ratio = timerRatio(runtime.deadline);
+  const ratio = timerRatio(runtime.deadline, decisionSeconds);
   const timerColor = ratio > 0.5 ? 'bg-emerald-500' : ratio > 0.25 ? 'bg-amber-500' : 'bg-rose-500';
 
   return (
@@ -68,7 +67,7 @@ export function RoleCard({
         <div className="mb-3">
           <div className="flex justify-between text-xs mb-1">
             <span className="text-orange-700 font-semibold">⏱ Còn {formatTimer(runtime.deadline)}</span>
-            <span className="text-gray-400">/ 3:30</span>
+            <span className="text-gray-400">/ {formatClock(decisionSeconds)}</span>
           </div>
           <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
             <div

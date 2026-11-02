@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSocket } from '@/lib/socket-client';
-import { CHAINS } from '@/lib/types';
+import { CHAINS, formatClock } from '@/lib/types';
 
 const CHAIN_OPTIONS = [
   { n: 2, label: '2 chuỗi', sub: '~16 SV (lớp nhỏ)', recommend: 'Dưới 25 SV' },
@@ -11,13 +11,16 @@ const CHAIN_OPTIONS = [
   { n: 5, label: '5 chuỗi', sub: '~40-200 SV', recommend: 'Trên 60 SV' },
 ];
 
-// Thời lượng ước tính từ 2 trận thật ngày 29/4: khoảng 4 phút/tuần
-const WEEK_OPTIONS = [
-  { n: 10, sub: '~40 phút' },
-  { n: 15, sub: '~1 giờ' },
-  { n: 20, sub: '~1 giờ 20' },
-  { n: 30, sub: '~2 giờ' },
-];
+const WEEK_OPTIONS = [10, 15, 20, 30];
+const DECISION_OPTIONS = [60, 90, 120, 150, 210];
+
+// 2 trận thật ngày 29/4 với 3:30 mỗi lượt mất khoảng 4 phút/tuần, tức 1,15 lần thời gian tối đa
+function estimateDuration(weeks: number, decisionSeconds: number): string {
+  const minutes = Math.round((weeks * decisionSeconds * 1.15) / 60);
+  if (minutes < 60) return `~${minutes} phút`;
+  const rest = Math.round((minutes % 60) / 5) * 5;
+  return `~${Math.floor(minutes / 60)} giờ${rest > 0 ? ` ${rest}` : ''}`;
+}
 
 export default function TeacherCreate() {
   const router = useRouter();
@@ -25,6 +28,7 @@ export default function TeacherCreate() {
   const [chainCount, setChainCount] = useState(2);
   const [noFactoryPicked, setNoFactoryPicked] = useState(0);
   const [totalWeeks, setTotalWeeks] = useState(30);
+  const [decisionSeconds, setDecisionSeconds] = useState(120);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [remember, setRemember] = useState(true);
@@ -42,7 +46,7 @@ export default function TeacherCreate() {
     setLoading(true);
     setError('');
     const socket = getSocket();
-    socket.emit('teacher:create', { chainCount, totalWeeks, noFactoryCount, password }, (res: { ok: boolean; roomCode?: string; error?: string }) => {
+    socket.emit('teacher:create', { chainCount, totalWeeks, noFactoryCount, decisionSeconds, password }, (res: { ok: boolean; roomCode?: string; error?: string }) => {
       setLoading(false);
       if (!res.ok || !res.roomCode) {
         setError(res.error || 'Không tạo được phòng.');
@@ -117,18 +121,35 @@ export default function TeacherCreate() {
         <div>
           <label className="block font-semibold mb-2">Số tuần chơi</label>
           <div className="grid grid-cols-4 gap-2">
-            {WEEK_OPTIONS.map(opt => (
-              <button key={opt.n} onClick={() => setTotalWeeks(opt.n)}
+            {WEEK_OPTIONS.map(n => (
+              <button key={n} onClick={() => setTotalWeeks(n)}
                 className={`border-2 rounded-xl p-3 text-center transition-smooth ${
-                  totalWeeks === opt.n ? 'border-purple-500 bg-purple-50' : 'border-gray-200 hover:border-purple-300'
+                  totalWeeks === n ? 'border-purple-500 bg-purple-50' : 'border-gray-200 hover:border-purple-300'
                 }`}>
-                <div className="font-bold text-lg">{opt.n}</div>
-                <div className="text-xs text-gray-600">{opt.sub}</div>
+                <div className="font-bold text-lg">{n}</div>
+                <div className="text-xs text-gray-600">{estimateDuration(n, decisionSeconds)}</div>
               </button>
             ))}
           </div>
           <div className="mt-2 text-xs text-gray-500">
-            Thời lượng là ước tính khoảng 4 phút/tuần. Có thể bấm Kết thúc sớm bất cứ lúc nào.
+            Thời lượng là ước tính, chưa tính lúc vào phòng. Có thể bấm Kết thúc sớm bất cứ lúc nào.
+          </div>
+        </div>
+
+        <div>
+          <label className="block font-semibold mb-2">Thời gian tối đa mỗi lượt</label>
+          <div className="flex gap-2">
+            {DECISION_OPTIONS.map(s => (
+              <button key={s} onClick={() => setDecisionSeconds(s)}
+                className={`flex-1 border-2 rounded-xl py-2 font-bold transition-smooth ${
+                  decisionSeconds === s ? 'border-purple-500 bg-purple-50' : 'border-gray-200 hover:border-purple-300'
+                }`}>
+                {formatClock(s)}
+              </button>
+            ))}
+          </div>
+          <div className="mt-2 text-xs text-gray-500">
+            Nhóm chốt sớm thì đi tiếp ngay. Hết giờ, AI chốt thay.
           </div>
         </div>
 
@@ -140,7 +161,7 @@ export default function TeacherCreate() {
 
         <button onClick={createRoom} disabled={loading}
           className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold py-4 rounded-xl hover:from-purple-700 hover:to-blue-700 disabled:from-gray-400 disabled:to-gray-400 shadow-md text-lg transition-smooth">
-          {loading ? '⏳ Đang tạo...' : `+ Tạo phòng (${chainCount} chuỗi, ${groupCount} nhóm, ${totalWeeks} tuần)`}
+          {loading ? '⏳ Đang tạo...' : `+ Tạo phòng (${chainCount} chuỗi, ${groupCount} nhóm, ${totalWeeks} tuần, ${formatClock(decisionSeconds)}/lượt)`}
         </button>
       </div>
 

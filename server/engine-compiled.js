@@ -6,7 +6,9 @@ const CHAINS = ['A', 'B', 'C', 'D', 'E'];
 const INITIAL_INVENTORY = { retailer: 12, wholesaler: 18, distributor: 25, factory: 33 };
 const HOLDING_COST = 1.0;
 const BACKLOG_COST = 2.0;
-const DECISION_TIMEOUT_MS = 210_000; // 3 phút 30 giây
+const DEFAULT_DECISION_SECONDS = 210;
+const MIN_DECISION_SECONDS = 30;
+const MAX_DECISION_SECONDS = 600;
 const SHIP_DELAY_TICKS = 2;
 const MAX_PLAYERS_PER_GROUP = 10;
 const MAX_NAME_LENGTH = 30;
@@ -47,7 +49,7 @@ function createChainRuntime() {
   return c;
 }
 
-function createGame(roomCode, chainCount = 2, totalWeeks = 30, captainRotateEvery = 0, noFactoryCount = 0) {
+function createGame(roomCode, chainCount = 2, totalWeeks = 30, captainRotateEvery = 0, noFactoryCount = 0, decisionSeconds = DEFAULT_DECISION_SECONDS) {
   // captainRotateEvery = 0 → KHÔNG xoay vòng captain, giữ cố định 1 người
   const n = Math.max(1, Math.min(CHAINS.length, Math.round(chainCount)));
   const weeks = Math.max(1, Math.min(MAX_WEEKS, Math.round(Number(totalWeeks)) || 30));
@@ -57,9 +59,11 @@ function createGame(roomCode, chainCount = 2, totalWeeks = 30, captainRotateEver
   for (const k of activeChains) { chains[k] = createChainRuntime(); demands[k] = []; }
   // Các chuỗi cuối danh sách chơi 3 vai: Phân phối đặt thẳng từ nguồn hàng, không có Nhà máy kể cả AI
   const k = Math.max(0, Math.min(n, Math.round(Number(noFactoryCount)) || 0));
+  const seconds = Math.round(Number(decisionSeconds)) || DEFAULT_DECISION_SECONDS;
   return {
     roomCode, teacherSocketId: null, status: 'lobby',
     totalWeeks: weeks, chainCount: n, noFactoryChains: activeChains.slice(n - k), chains, demands,
+    decisionSeconds: Math.max(MIN_DECISION_SECONDS, Math.min(MAX_DECISION_SECONDS, seconds)),
     chatMessages: [], captainRotateEvery, createdAt: Date.now(),
   };
 }
@@ -149,7 +153,7 @@ function tryFlush(state, chain, role) {
     // Lưu placedAtDownstreamWeek để tính ngày arrival cố định cho ship-back
     up.inbox = { value: r.decidedValue, placedAtDownstreamWeek: r.week };
     up.status = 'deciding';
-    up.deadline = Date.now() + DECISION_TIMEOUT_MS;
+    up.deadline = Date.now() + state.decisionSeconds * 1000;
     up.suggestions = [];
     r.decidedValue = null; r.inbox = null; r.status = 'idle'; r.deadline = null;
     return true;
@@ -239,7 +243,7 @@ function sendDemand(state, chain, value) {
   const v = clampOrder(value);
   r.inbox = { value: v, placedAtDownstreamWeek: r.week };
   r.status = 'deciding';
-  r.deadline = Date.now() + DECISION_TIMEOUT_MS;
+  r.deadline = Date.now() + state.decisionSeconds * 1000;
   r.suggestions = [];
   state.demands[chain].push(v);
   return { ok: true };

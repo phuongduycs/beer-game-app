@@ -139,7 +139,7 @@ export default function PlayPage() {
 
       <div className="grid md:grid-cols-3 gap-4">
         <div className="md:col-span-2 space-y-4">
-          <RoleCard role={session.role} runtime={myRole} />
+          <RoleCard role={session.role} runtime={myRole} decisionSeconds={state.decisionSeconds} />
 
           <div className={`rounded-xl shadow-sm p-5 border-2 transition-smooth ${
             status === 'deciding' ? 'bg-white border-orange-300' :
@@ -214,7 +214,7 @@ export default function PlayPage() {
 
           <HistoryTable runtime={myRole} />
 
-          <TipsPanel role={session.role} />
+          <TipsPanel role={session.role} decisionSeconds={state.decisionSeconds} />
 
           <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-200">
             <div className="flex items-baseline justify-between mb-3">

@@ -7,7 +7,7 @@ import { RoleCard } from '@/components/RoleCard';
 import { BullwhipChart } from '@/components/BullwhipChart';
 import { ConnectionBanner } from '@/components/ConnectionBanner';
 import type { ChainKey, RoleKey, ChainRuntime, GameState, Player } from '@/lib/types';
-import { ROLES, rolesOf, rankingRoles } from '@/lib/types';
+import { ROLES, rolesOf, rankingRoles, formatClock } from '@/lib/types';
 import { exportGameToCSV, downloadCSV } from '@/lib/exportGame';
 
 type TabKey = 'overview' | 'members' | ChainKey;
@@ -129,7 +129,7 @@ export default function TeacherDashboard() {
         <div>
           <div className="text-xs text-gray-500 uppercase tracking-wide">Mã phòng</div>
           <div className="font-mono font-bold text-3xl text-purple-700 tracking-wider">{roomCode}</div>
-          <div className="text-xs text-gray-400">{activeChains.length} chuỗi • {state.totalWeeks} tuần • Tối đa {activeChains.reduce((s, k) => s + rolesOf(state, k).length, 0) * 10} SV{state.noFactoryChains.length > 0 && ` • Chuỗi ${state.noFactoryChains.join(', ')} không có Nhà máy, CP chỉ so 3 vai`}</div>
+          <div className="text-xs text-gray-400">{activeChains.length} chuỗi • {state.totalWeeks} tuần • {formatClock(state.decisionSeconds)} mỗi lượt • Tối đa {activeChains.reduce((s, k) => s + rolesOf(state, k).length, 0) * 10} SV{state.noFactoryChains.length > 0 && ` • Chuỗi ${state.noFactoryChains.join(', ')} không có Nhà máy, CP chỉ so 3 vai`}</div>
         </div>
         <div>
           <div className="text-xs text-gray-500 uppercase tracking-wide">Trạng thái</div>
@@ -448,7 +448,7 @@ function ChainDetail({ chain, state, kick }: { chain: ChainKey; state: GameState
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {rolesOf(state, chain).map(r => (
           <div key={r} className="space-y-2">
-            <RoleCard role={r} runtime={c[r]} />
+            <RoleCard role={r} runtime={c[r]} decisionSeconds={state.decisionSeconds} />
             <PlayersList players={c[r].players} kick={kick} />
           </div>
         ))}

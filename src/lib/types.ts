@@ -19,7 +19,6 @@ export const INITIAL_INVENTORY: Record<RoleKey, number> = {
 
 export const HOLDING_COST = 1.0;
 export const BACKLOG_COST = 2.0;
-export const DECISION_TIMEOUT_MS = 210_000; // 3 phút 30 giây
 export const SHIP_DELAY_TICKS = 2;
 export const MAX_PLAYERS_PER_GROUP = 10;
 
@@ -97,6 +96,7 @@ export interface GameState {
   teacherSocketId: string | null;
   status: 'lobby' | 'running' | 'ended';
   totalWeeks: number;
+  decisionSeconds: number;                   // Thời gian tối đa mỗi lượt
   noFactoryChains: ChainKey[];               // Chuỗi 3 vai, không có Nhà máy
   chains: Record<ChainKey, ChainRuntime>;   // ĐỔI: dynamic 5 chains
   demands: Record<ChainKey, number[]>;       // ĐỔI: demand history từng chuỗi
@@ -106,6 +106,10 @@ export interface GameState {
 }
 
 // Đúng cột "Tồn kho có sẵn" của biên bản: tồn trừ nợ, cộng lô hàng về trong tuần sắp chốt
+export function formatClock(seconds: number): string {
+  return `${Math.floor(seconds / 60)}:${(seconds % 60).toString().padStart(2, '0')}`;
+}
+
 export function arrivingThisWeek(r: RoleRuntime): number {
   return r.shipmentsInbound.filter(s => s.ticksLeft <= 1).reduce((sum, s) => sum + s.amount, 0);
 }

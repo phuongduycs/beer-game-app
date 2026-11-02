@@ -63,7 +63,7 @@ app.prepare().then(() => {
       const state = games.get(roomCode);
       if (state) socket.emit('state:update', state);
     }));
-    socket.on('teacher:create', gate(socket, ({ chainCount = 2, totalWeeks = 30, noFactoryCount = 0, password = '' } = {}, cb) => {
+    socket.on('teacher:create', gate(socket, ({ chainCount = 2, totalWeeks = 30, noFactoryCount = 0, decisionSeconds, password = '' } = {}, cb) => {
       const required = process.env.TEACHER_PASSWORD;
       if (!required) {
         return cb && cb({ ok: false, error: 'Server chưa cấu hình TEACHER_PASSWORD. Liên hệ admin.' });
@@ -72,7 +72,7 @@ app.prepare().then(() => {
         return cb && cb({ ok: false, error: 'Sai password giảng viên.' });
       }
       const roomCode = nanoid(6).toUpperCase();
-      const state = engine.createGame(roomCode, chainCount, totalWeeks, 0, noFactoryCount);
+      const state = engine.createGame(roomCode, chainCount, totalWeeks, 0, noFactoryCount, decisionSeconds);
       state.teacherSocketId = socket.id;
       games.set(roomCode, state);
       socket.join(roomCode);
