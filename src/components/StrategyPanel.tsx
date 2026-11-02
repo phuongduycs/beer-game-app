@@ -43,7 +43,7 @@ export function StrategyPanel({ role, runtime }: { role: RoleKey; runtime: RoleR
           <div className="font-bold text-lg">{avgDemand.toFixed(1)}</div>
         </div>
         <div className="bg-gray-50 rounded p-2">
-          <div className="text-xs text-gray-500">Tồn − Thiếu (net)</div>
+          <div className="text-xs text-gray-500">Tồn − Thiếu (trước hàng về)</div>
           <div className={`font-bold text-lg ${net < 0 ? 'text-red-600' : 'text-green-600'}`}>{net}</div>
         </div>
         <div className="bg-gray-50 rounded p-2">

@@ -20,8 +20,9 @@ export function HistoryTable({ runtime }: { runtime: RoleRuntime }) {
               <th className="px-2 py-1 text-left">Tuần</th>
               <th className="px-2 py-1 text-right">Nhu cầu</th>
               <th className="px-2 py-1 text-right">Nhận</th>
+              <th className="px-2 py-1 text-right">Tồn có sẵn</th>
               <th className="px-2 py-1 text-right">Giao</th>
-              <th className="px-2 py-1 text-right">Tồn</th>
+              <th className="px-2 py-1 text-right">Tồn sau</th>
               <th className="px-2 py-1 text-right">Thiếu</th>
               <th className="px-2 py-1 text-right">Đặt</th>
               <th className="px-2 py-1 text-right">CP tuần</th>
@@ -36,6 +37,7 @@ export function HistoryTable({ runtime }: { runtime: RoleRuntime }) {
                 </td>
                 <td className="px-2 py-1 text-right">{h.incomingOrder}</td>
                 <td className="px-2 py-1 text-right text-blue-600">{h.received}</td>
+                <td className={`px-2 py-1 text-right ${h.netAtStart < 0 ? 'text-red-600 font-semibold' : ''}`}>{h.netAtStart}</td>
                 <td className="px-2 py-1 text-right text-green-600">{h.shipped}</td>
                 <td className="px-2 py-1 text-right">{h.inventory}</td>
                 <td className="px-2 py-1 text-right text-red-600">{h.backlog > 0 ? -h.backlog : 0}</td>

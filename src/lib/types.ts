@@ -105,6 +105,11 @@ export interface GameState {
   createdAt: number;
 }
 
+// Đúng cột "Tồn kho có sẵn" của biên bản: tồn trừ nợ, cộng lô hàng về trong tuần sắp chốt
+export function arrivingThisWeek(r: RoleRuntime): number {
+  return r.shipmentsInbound.filter(s => s.ticksLeft <= 1).reduce((sum, s) => sum + s.amount, 0);
+}
+
 export function rolesOf(state: GameState, chain: ChainKey): RoleKey[] {
   return state.noFactoryChains.includes(chain) ? ROLES.slice(0, 3) : ROLES;
 }

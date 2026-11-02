@@ -1,6 +1,6 @@
 'use client';
 import type { RoleKey, RoleRuntime } from '@/lib/types';
-import { ROLE_LABELS } from '@/lib/types';
+import { ROLE_LABELS, arrivingThisWeek } from '@/lib/types';
 
 const COLORS: Record<RoleKey, { border: string; text: string; bg: string; ring: string }> = {
   retailer: { border: 'border-blue-500', text: 'text-blue-600', bg: 'bg-blue-50', ring: 'ring-blue-200' },
@@ -44,6 +44,9 @@ export function RoleCard({
   const badge = STATUS_BADGE[runtime.status];
   const inTransit = runtime.shipmentsInbound.reduce((s, x) => s + x.amount, 0);
   const isDeciding = runtime.status === 'deciding';
+  const arriving = arrivingThisWeek(runtime);
+  const shownStock = isDeciding ? net + arriving : net;
+  const stockLabel = isDeciding ? `Tồn có sẵn tuần ${runtime.week + 1}` : runtime.week > 0 ? `Tồn cuối tuần ${runtime.week}` : 'Tồn đầu kỳ';
   const ratio = timerRatio(runtime.deadline);
   const timerColor = ratio > 0.5 ? 'bg-emerald-500' : ratio > 0.25 ? 'bg-amber-500' : 'bg-rose-500';
 
@@ -101,11 +104,14 @@ export function RoleCard({
       {/* Net inventory — visual */}
       <div className="space-y-1.5 text-sm">
         <div className="flex justify-between items-baseline">
-          <span className="text-gray-500">Tồn có sẵn (net)</span>
-          <span className={`font-bold text-xl ${net < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-            {net >= 0 ? '+' : ''}{net}
+          <span className="text-gray-500">{stockLabel}</span>
+          <span className={`font-bold text-xl ${shownStock < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+            {shownStock >= 0 ? '+' : ''}{shownStock}
           </span>
         </div>
+        {isDeciding && (
+          <div className="text-xs text-gray-400 text-right">= cuối tuần trước {net} + hàng về {arriving}</div>
+        )}
 
         {/* Inventory bar */}
         <div className="flex gap-0.5 h-2">
