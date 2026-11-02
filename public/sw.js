@@ -1,7 +1,7 @@
 // Simple service worker for PWA — cache static assets.
 // Socket.io traffic không cache.
 
-const CACHE_NAME = 'beer-game-v2';
+const CACHE_NAME = 'beer-game-v3';
 const PRECACHE_URLS = ['/', '/join', '/manifest.json'];
 
 self.addEventListener('install', (event) => {
@@ -26,6 +26,23 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET') return;
   if (url.pathname.startsWith('/socket.io')) return;
   if (url.pathname.startsWith('/api')) return;
+
+  // Chỉ file có hash trong tên mới an toàn để lấy từ cache trước.
+  // Trang và dữ liệu trang luôn lấy bản mới, cache chỉ dùng khi mất mạng.
+  if (!url.pathname.startsWith('/_next/static/')) {
+    event.respondWith(
+      fetch(req)
+        .then((response) => {
+          if (response.ok && url.origin === self.location.origin) {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(req, copy));
+          }
+          return response;
+        })
+        .catch(() => caches.match(req))
+    );
+    return;
+  }
 
   event.respondWith(
     caches.match(req).then((cached) => {
