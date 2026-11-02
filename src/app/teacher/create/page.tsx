@@ -2,18 +2,29 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSocket } from '@/lib/socket-client';
+import { CHAINS } from '@/lib/types';
 
 const CHAIN_OPTIONS = [
   { n: 2, label: '2 chuỗi', sub: '~16 SV (lớp nhỏ)', recommend: 'Dưới 25 SV' },
   { n: 3, label: '3 chuỗi', sub: '~24 SV', recommend: '25-40 SV' },
   { n: 4, label: '4 chuỗi', sub: '~32 SV', recommend: '40-60 SV' },
-  { n: 5, label: '5 chuỗi', sub: '~40-160 SV', recommend: 'Trên 60 SV' },
+  { n: 5, label: '5 chuỗi', sub: '~40-200 SV', recommend: 'Trên 60 SV' },
+];
+
+// Thời lượng ước tính từ 2 trận thật ngày 29/4: khoảng 4 phút/tuần
+const WEEK_OPTIONS = [
+  { n: 10, sub: '~40 phút' },
+  { n: 15, sub: '~1 giờ' },
+  { n: 20, sub: '~1 giờ 20' },
+  { n: 30, sub: '~2 giờ' },
 ];
 
 export default function TeacherCreate() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [chainCount, setChainCount] = useState(2);
+  const [noFactoryPicked, setNoFactoryPicked] = useState(0);
+  const [totalWeeks, setTotalWeeks] = useState(30);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [remember, setRemember] = useState(true);
@@ -23,17 +34,24 @@ export default function TeacherCreate() {
     if (saved) setPassword(saved);
   }, []);
 
+  const noFactoryCount = Math.min(noFactoryPicked, chainCount);
+  const noFactoryChains = CHAINS.slice(chainCount - noFactoryCount, chainCount);
+  const groupCount = chainCount * 4 - noFactoryCount;
+
   function createRoom() {
     setLoading(true);
     setError('');
     const socket = getSocket();
-    socket.emit('teacher:create', { chainCount, password }, (res: { ok: boolean; roomCode?: string; error?: string }) => {
+    socket.emit('teacher:create', { chainCount, totalWeeks, noFactoryCount, password }, (res: { ok: boolean; roomCode?: string; error?: string }) => {
       setLoading(false);
       if (!res.ok || !res.roomCode) {
         setError(res.error || 'Không tạo được phòng.');
         return;
       }
-      if (remember && password) localStorage.setItem('bg_teacher_pw', password);
+      // Dashboard cần password để vào phòng; tab này luôn giữ, trình duyệt chỉ nhớ khi được tick
+      sessionStorage.setItem('bg_teacher_pw', password);
+      if (remember) localStorage.setItem('bg_teacher_pw', password);
+      else localStorage.removeItem('bg_teacher_pw');
       router.push(`/teacher/dashboard/${res.roomCode}`);
     });
   }
@@ -73,7 +91,44 @@ export default function TeacherCreate() {
             ))}
           </div>
           <div className="mt-2 text-xs text-gray-500">
-            Mỗi chuỗi 4 vai (R/W/D/F), mỗi vai tối đa <b>8 SV</b>. Tối đa <b>{chainCount * 4 * 8} SV</b> trong phòng.
+            <b>{groupCount} nhóm</b>, mỗi vai tối đa <b>10 SV</b>. Tối đa <b>{groupCount * 10} SV</b> trong phòng.
+          </div>
+        </div>
+
+        <div>
+          <label className="block font-semibold mb-2">Số chuỗi không có Nhà máy</label>
+          <div className="flex gap-2">
+            {Array.from({ length: chainCount + 1 }, (_, n) => (
+              <button key={n} onClick={() => setNoFactoryPicked(n)}
+                className={`flex-1 border-2 rounded-xl py-2 font-bold transition-smooth ${
+                  noFactoryCount === n ? 'border-purple-500 bg-purple-50' : 'border-gray-200 hover:border-purple-300'
+                }`}>
+                {n}
+              </button>
+            ))}
+          </div>
+          <div className="mt-2 text-xs text-gray-500">
+            {noFactoryCount === 0
+              ? 'Mọi chuỗi đủ 4 vai.'
+              : `Chuỗi ${noFactoryChains.join(', ')} chỉ có 3 vai: Phân phối đặt bao nhiêu nhận đúng bấy nhiêu sau 2 tuần. Xếp hạng chỉ so 3 vai chung.`}
+          </div>
+        </div>
+
+        <div>
+          <label className="block font-semibold mb-2">Số tuần chơi</label>
+          <div className="grid grid-cols-4 gap-2">
+            {WEEK_OPTIONS.map(opt => (
+              <button key={opt.n} onClick={() => setTotalWeeks(opt.n)}
+                className={`border-2 rounded-xl p-3 text-center transition-smooth ${
+                  totalWeeks === opt.n ? 'border-purple-500 bg-purple-50' : 'border-gray-200 hover:border-purple-300'
+                }`}>
+                <div className="font-bold text-lg">{opt.n}</div>
+                <div className="text-xs text-gray-600">{opt.sub}</div>
+              </button>
+            ))}
+          </div>
+          <div className="mt-2 text-xs text-gray-500">
+            Thời lượng là ước tính khoảng 4 phút/tuần. Có thể bấm Kết thúc sớm bất cứ lúc nào.
           </div>
         </div>
 
@@ -85,12 +140,12 @@ export default function TeacherCreate() {
 
         <button onClick={createRoom} disabled={loading}
           className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold py-4 rounded-xl hover:from-purple-700 hover:to-blue-700 disabled:from-gray-400 disabled:to-gray-400 shadow-md text-lg transition-smooth">
-          {loading ? '⏳ Đang tạo...' : `+ Tạo phòng (${chainCount} chuỗi)`}
+          {loading ? '⏳ Đang tạo...' : `+ Tạo phòng (${chainCount} chuỗi, ${groupCount} nhóm, ${totalWeeks} tuần)`}
         </button>
       </div>
 
       <div className="mt-6 bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-900 space-y-1">
-        <div className="font-semibold mb-1">📋 Sau khi tạo, thầy sẽ:</div>
+        <div className="font-semibold mb-1">📋 Sau khi tạo, giảng viên sẽ:</div>
         <div>① Chia mã 6 ký tự cho SV</div>
         <div>② Chờ đủ SV rồi bấm Start</div>
         <div>③ Bơm demand từng tuần cho Retailer từng chuỗi</div>

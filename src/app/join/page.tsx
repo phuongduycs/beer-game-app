@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getSocket } from '@/lib/socket-client';
+import { getSocket, getClientToken } from '@/lib/socket-client';
 import { ROLE_LABELS, CHAINS, MAX_NAME_LENGTH } from '@/lib/types';
 import type { ChainKey, RoleKey } from '@/lib/types';
 
@@ -24,7 +24,7 @@ export default function JoinPage() {
     const socket = getSocket();
     socket.emit(
       'player:join',
-      { roomCode: roomCode.trim().toUpperCase(), name: name.trim().slice(0, MAX_NAME_LENGTH), chain, role },
+      { roomCode: roomCode.trim().toUpperCase(), name: name.trim().slice(0, MAX_NAME_LENGTH), chain, role, token: getClientToken() },
       (res: { ok: boolean; playerId?: string; error?: string }) => {
         setLoading(false);
         if (!res.ok) { setError(res.error || 'Lỗi không xác định'); return; }
@@ -83,7 +83,7 @@ export default function JoinPage() {
               <option key={k} value={k}>{v}</option>
             ))}
           </select>
-          <p className="text-xs text-gray-500 mt-1">Tối đa 8 SV/vai. Người vào đầu tiên làm captain.</p>
+          <p className="text-xs text-gray-500 mt-1">Tối đa 10 SV/vai. Người vào đầu tiên làm captain.</p>
         </div>
 
         {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm p-2 rounded-lg">{error}</div>}

@@ -33,9 +33,10 @@ app.prepare().then(() => {
     }
   }, 1000);
 
-  function gameByTeacher(socketId) {
-    for (const [, s] of games) if (s.teacherSocketId === socketId) return s;
-    return null;
+  // Tra theo phòng của socket: cùng 1 tab có thể đã tạo nhiều phòng
+  function gameByTeacher(socket) {
+    const state = games.get(socket.data.roomCode);
+    return state && state.teacherSocketId === socket.id ? state : null;
   }
 
   // Simple rate limiting per socket
@@ -69,13 +70,13 @@ app.prepare().then(() => {
       if (state) socket.emit('state:update', state);
     }));
 
-    socket.on('teacher:create', gate(socket, ({ chainCount = 2, password = '' } = {}, cb) => {
+    socket.on('teacher:create', gate(socket, ({ chainCount = 2, totalWeeks = 30, noFactoryCount = 0, password = '' } = {}, cb) => {
       const required = process.env.TEACHER_PASSWORD;
       if (required && password !== required) {
         return cb && cb({ ok: false, error: 'Sai password giảng viên.' });
       }
       const roomCode = nanoid(6).toUpperCase();
-      const state = engine.createGame(roomCode, chainCount);
+      const state = engine.createGame(roomCode, chainCount, totalWeeks, 0, noFactoryCount);
       state.teacherSocketId = socket.id;
       games.set(roomCode, state);
       socket.join(roomCode);
@@ -87,7 +88,7 @@ app.prepare().then(() => {
     socket.on('teacher:join', gate(socket, ({ roomCode, password = '' }, cb) => {
       const required = process.env.TEACHER_PASSWORD;
       if (required && password !== required) {
-        return cb && cb({ ok: false, error: 'Sai password giảng viên.' });
+        return cb && cb({ ok: false, needPassword: true, error: 'Sai password giảng viên.' });
       }
       const state = games.get(roomCode);
       if (!state) return cb && cb({ ok: false, error: 'Phòng không tồn tại hoặc đã hết hạn.' });
@@ -99,12 +100,12 @@ app.prepare().then(() => {
     }));
 
     socket.on('teacher:startGame', gate(socket, () => {
-      const state = gameByTeacher(socket.id);
+      const state = gameByTeacher(socket);
       if (state && engine.startGame(state)) broadcastState(state.roomCode);
     }));
 
     socket.on('teacher:sendDemand', gate(socket, ({ chain, value }, cb) => {
-      const state = gameByTeacher(socket.id);
+      const state = gameByTeacher(socket);
       if (!state) return cb && cb({ ok: false, error: 'Không tìm thấy game' });
       const res = engine.sendDemand(state, chain, value);
       if (res.ok) broadcastState(state.roomCode);
@@ -112,21 +113,21 @@ app.prepare().then(() => {
     }));
 
     socket.on('teacher:reset', gate(socket, () => {
-      const state = gameByTeacher(socket.id);
+      const state = gameByTeacher(socket);
       if (!state) return;
       engine.resetGame(state);
       broadcastState(state.roomCode);
     }));
 
     socket.on('teacher:endGame', gate(socket, () => {
-      const state = gameByTeacher(socket.id);
+      const state = gameByTeacher(socket);
       if (!state) return;
-      state.status = 'ended';
+      engine.endGame(state);
       broadcastState(state.roomCode);
     }));
 
     socket.on('teacher:kickPlayer', gate(socket, ({ playerId }) => {
-      const state = gameByTeacher(socket.id);
+      const state = gameByTeacher(socket);
       if (!state || !playerId) return;
       // Kick target socket
       engine.kickPlayer(state, playerId);
@@ -139,7 +140,7 @@ app.prepare().then(() => {
     }));
 
     socket.on('teacher:setCaptain', gate(socket, ({ chain, role, playerId }) => {
-      const state = gameByTeacher(socket.id);
+      const state = gameByTeacher(socket);
       if (!state) return;
       const c = state.chains[chain];
       if (!c) return;
@@ -150,11 +151,10 @@ app.prepare().then(() => {
       broadcastState(state.roomCode);
     }));
 
-    socket.on('player:join', gate(socket, ({ roomCode, name, chain, role }, cb) => {
+    socket.on('player:join', gate(socket, ({ roomCode, name, chain, role, token }, cb) => {
       const state = games.get(roomCode);
       if (!state) return cb({ ok: false, error: 'Mã phòng không tồn tại.' });
-      if (state.status === 'ended') return cb({ ok: false, error: 'Game đã kết thúc.' });
-      const result = engine.addPlayer(state, socket.id, name, chain, role);
+      const result = engine.addPlayer(state, socket.id, name, chain, role, token);
       if (!result.ok) return cb({ ok: false, error: result.error });
       socket.join(roomCode);
       socket.data.roomCode = roomCode;

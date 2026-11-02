@@ -22,7 +22,7 @@ export default function Home() {
           <div className="text-6xl mb-4">🍺</div>
           <h1 className="text-5xl md:text-6xl font-bold mb-3">Beer Game — IUH</h1>
           <p className="text-lg text-white/90 max-w-2xl">
-            Mô phỏng chuỗi cung ứng 4 vai cho sinh viên. Tối đa 5 chuỗi × 4 nhóm × 8 SV = 160 SV/phòng.
+            Mô phỏng chuỗi cung ứng 4 vai cho sinh viên. Tối đa 5 chuỗi × 4 nhóm × 10 SV = 200 SV/phòng.
           </p>
         </div>
       </div>

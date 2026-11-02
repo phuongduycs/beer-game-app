@@ -2,7 +2,7 @@
 // Tạo 1 file CSV với nhiều "section" ngăn cách bằng dòng trống.
 
 import type { GameState, ChainKey, RoleKey } from './types';
-import { ROLES, ROLE_LABELS } from './types';
+import { ROLES, ROLE_LABELS, rolesOf, rankingRoles } from './types';
 
 const ROLE_VI: Record<RoleKey, string> = {
   retailer: 'Bán lẻ', wholesaler: 'Bán sỉ', distributor: 'Phân phối', factory: 'Nhà máy',
@@ -25,20 +25,27 @@ export function exportGameToCSV(state: GameState): string {
   lines.push(row('BEER GAME — KẾT QUẢ TRẬN ĐẤU'));
   lines.push(row('Mã phòng', state.roomCode));
   lines.push(row('Số chuỗi', activeChains.length));
+  if (state.noFactoryChains.length > 0) lines.push(row('Chuỗi không có Nhà máy', state.noFactoryChains.join(' ')));
   lines.push(row('Số tuần tổng', state.totalWeeks));
   lines.push(row('Trạng thái', state.status));
   lines.push(row('Thời điểm tạo', new Date(state.createdAt).toLocaleString('vi-VN')));
   lines.push(row('Thời điểm xuất', new Date().toLocaleString('vi-VN')));
   lines.push('');
 
-  // Tổng chi phí từng chuỗi
+  // Tổng chi phí từng chuỗi. Các vai và các chuỗi có thể chơi số tuần khác nhau,
+  // nên chỉ xếp hạng đến tuần mà mọi vai của mọi chuỗi đều đã hoàn thành.
+  const commonWeeks = Math.min(...activeChains.flatMap(k => rolesOf(state, k).map(r => state.chains[k][r].history.length)));
   lines.push(row('=== BẢNG XẾP HẠNG TỔNG CHI PHÍ ==='));
-  lines.push(row('Chuỗi', 'Retailer', 'Wholesaler', 'Distributor', 'Factory', 'Tổng'));
+  lines.push(row(`So sánh đến hết tuần ${commonWeeks}: tuần mà mọi vai của mọi chuỗi đều đã hoàn thành`));
+  const rankRoles = rankingRoles(state);
+  if (state.noFactoryChains.length > 0) lines.push(row('Có chuỗi không có Nhà máy nên tổng chỉ tính Bán lẻ + Bán sỉ + Phân phối'));
+  lines.push(row('Chuỗi', 'Retailer', 'Wholesaler', 'Distributor', 'Factory', `Tổng đến tuần ${commonWeeks}`, 'Tổng hiện tại (số tuần có thể khác nhau)'));
   const ranking = activeChains.map(k => {
     const c = state.chains[k];
-    const costs = ROLES.map(r => c[r].cost);
-    const total = costs.reduce((a, b) => a + b, 0);
-    return { chain: k, costs, total };
+    const costs = rolesOf(state, k).map(r => (commonWeeks > 0 ? c[r].history[commonWeeks - 1].cumCost : 0));
+    const total = rankRoles.reduce((sum, _, i) => sum + costs[i], 0);
+    const current = rankRoles.reduce((sum, r) => sum + c[r].cost, 0);
+    return { chain: k, costs, total, current };
   }).sort((a, b) => a.total - b.total);
   ranking.forEach(r => {
     lines.push(row(
@@ -46,11 +53,16 @@ export function exportGameToCSV(state: GameState): string {
       r.costs[0].toFixed(2),
       r.costs[1].toFixed(2),
       r.costs[2].toFixed(2),
-      r.costs[3].toFixed(2),
-      r.total.toFixed(2)
+      r.costs[3]?.toFixed(2) ?? '—',
+      r.total.toFixed(2),
+      r.current.toFixed(2)
     ));
   });
-  if (ranking.length > 0) {
+  if (commonWeeks === 0) {
+    lines.push(row('Chưa đủ dữ liệu để xếp hạng'));
+  } else if (ranking.length > 1 && ranking[0].total === ranking[1].total) {
+    lines.push(row('', '', '', '', 'WINNER', `Hòa — $${ranking[0].total.toFixed(2)}`));
+  } else {
     lines.push(row('', '', '', '', 'WINNER', `Chuỗi ${ranking[0].chain} — $${ranking[0].total.toFixed(2)}`));
   }
   lines.push('');

@@ -30,3 +30,22 @@ export function useGameState(): GameState | null {
 
   return state;
 }
+
+// Hook báo trạng thái kết nối socket để hiện cảnh báo khi rớt mạng
+export function useSocketConnected(): boolean {
+  const [connected, setConnected] = useState(true);
+
+  useEffect(() => {
+    const socket = getSocket();
+    const onConnect = () => setConnected(true);
+    const onDisconnect = () => setConnected(false);
+    socket.on('connect', onConnect);
+    socket.on('disconnect', onDisconnect);
+    return () => {
+      socket.off('connect', onConnect);
+      socket.off('disconnect', onDisconnect);
+    };
+  }, []);
+
+  return connected;
+}

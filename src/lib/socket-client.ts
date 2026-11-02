@@ -12,3 +12,14 @@ export function getSocket(): Socket {
   }
   return socket;
 }
+
+// Mã riêng của trình duyệt: giúp server nhận ra SV vào lại sau khi rớt mạng
+export function getClientToken(): string {
+  const key = 'bg_client_token';
+  let token = localStorage.getItem(key);
+  if (!token) {
+    token = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    localStorage.setItem(key, token);
+  }
+  return token;
+}

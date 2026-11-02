@@ -1,4 +1,4 @@
-// ASYNC pipeline engine — 5 chains × 4 roles × 8 SV
+// ASYNC pipeline engine — 5 chains × 4 roles × 10 SV
 const { nanoid } = require('nanoid');
 
 const ROLES = ['retailer', 'wholesaler', 'distributor', 'factory'];
@@ -8,10 +8,15 @@ const HOLDING_COST = 1.0;
 const BACKLOG_COST = 2.0;
 const DECISION_TIMEOUT_MS = 210_000; // 3 phút 30 giây
 const SHIP_DELAY_TICKS = 2;
-const MAX_PLAYERS_PER_GROUP = 8;
+const MAX_PLAYERS_PER_GROUP = 10;
 const MAX_NAME_LENGTH = 30;
 const MAX_CHAT_LENGTH = 200;
 const MAX_ORDER_VALUE = 999;
+const MAX_WEEKS = 52;
+const NOT_RUNNING_ERROR = 'Trò chơi chưa bắt đầu hoặc đã kết thúc.';
+
+// Mã trình duyệt của từng SV. Để ngoài GameState vì state được gửi cho cả phòng.
+const playerTokens = new WeakMap();
 
 const UPSTREAM = { retailer: 'wholesaler', wholesaler: 'distributor', distributor: 'factory', factory: null };
 const DOWNSTREAM = { wholesaler: 'retailer', distributor: 'wholesaler', factory: 'distributor', retailer: null };
@@ -42,16 +47,19 @@ function createChainRuntime() {
   return c;
 }
 
-function createGame(roomCode, chainCount = 2, totalWeeks = 30, captainRotateEvery = 0) {
+function createGame(roomCode, chainCount = 2, totalWeeks = 30, captainRotateEvery = 0, noFactoryCount = 0) {
   // captainRotateEvery = 0 → KHÔNG xoay vòng captain, giữ cố định 1 người
   const n = Math.max(1, Math.min(CHAINS.length, Math.round(chainCount)));
+  const weeks = Math.max(1, Math.min(MAX_WEEKS, Math.round(Number(totalWeeks)) || 30));
   const activeChains = CHAINS.slice(0, n);
   const chains = {};
   const demands = {};
   for (const k of activeChains) { chains[k] = createChainRuntime(); demands[k] = []; }
+  // Các chuỗi cuối danh sách chơi 3 vai: Phân phối đặt thẳng từ nguồn hàng, không có Nhà máy kể cả AI
+  const k = Math.max(0, Math.min(n, Math.round(Number(noFactoryCount)) || 0));
   return {
     roomCode, teacherSocketId: null, status: 'lobby',
-    totalWeeks, chainCount: n, chains, demands,
+    totalWeeks: weeks, chainCount: n, noFactoryChains: activeChains.slice(n - k), chains, demands,
     chatMessages: [], captainRotateEvery, createdAt: Date.now(),
   };
 }
@@ -61,6 +69,10 @@ function activeChainsOf(state) {
 }
 
 function chainOf(state, chain) { return state.chains[chain]; }
+
+function rolesOf(state, chain) {
+  return state.noFactoryChains.includes(chain) ? ROLES.slice(0, 3) : ROLES;
+}
 
 function computeAIOrder(role, r, incomingDemand) {
   const N = Math.min(4, r.history.length);
@@ -125,7 +137,7 @@ function tryFlush(state, chain, role) {
   const r = c[role];
   if (r.decidedValue == null) return false;
 
-  const upKey = UPSTREAM[role];
+  const upKey = rolesOf(state, chain).includes(UPSTREAM[role]) ? UPSTREAM[role] : null;
   if (upKey === null) {
     r.shipmentsInbound.push({ ticksLeft: SHIP_DELAY_TICKS, amount: r.decidedValue });
     r.decidedValue = null; r.status = 'idle'; r.inbox = null; r.deadline = null;
@@ -212,12 +224,13 @@ function commitDecision(state, chain, role, value, aiDecided) {
 function checkGameEnd(state) {
   const done = activeChainsOf(state).every(chain => {
     const c = chainOf(state, chain);
-    return ROLES.every(r => c[r].week >= state.totalWeeks);
+    return rolesOf(state, chain).every(r => c[r].week >= state.totalWeeks);
   });
   if (done) state.status = 'ended';
 }
 
 function sendDemand(state, chain, value) {
+  if (state.status !== 'running') return { ok: false, error: NOT_RUNNING_ERROR };
   if (!state.chains[chain]) return { ok: false, error: 'Chuỗi không hợp lệ.' };
   const c = chainOf(state, chain);
   const r = c.retailer;
@@ -230,6 +243,18 @@ function sendDemand(state, chain, value) {
   r.suggestions = [];
   state.demands[chain].push(v);
   return { ok: true };
+}
+
+// Khóa trận: xóa mọi lượt đang chờ để không vai nào chốt tiếp được, giữ nguyên lịch sử và chi phí
+function endGame(state) {
+  state.status = 'ended';
+  for (const chain of activeChainsOf(state)) {
+    const c = chainOf(state, chain);
+    for (const role of ROLES) {
+      const r = c[role];
+      r.status = 'idle'; r.inbox = null; r.deadline = null; r.decidedValue = null; r.suggestions = [];
+    }
+  }
 }
 
 function resetGame(state) {
@@ -247,13 +272,16 @@ function resetGame(state) {
   state.status = 'running';
 }
 
-function addPlayer(state, socketId, name, chain, role) {
+function addPlayer(state, socketId, name, chain, role, token) {
   if (!state.chains[chain]) return { ok: false, error: 'Chuỗi không hợp lệ (chuỗi này không có trong phòng).' };
   if (!ROLES.includes(role)) return { ok: false, error: 'Vai không hợp lệ.' };
+  if (!rolesOf(state, chain).includes(role)) return { ok: false, error: `Chuỗi ${chain} không có vai Nhà máy, hãy chọn vai khác.` };
   const cleanName = sanitizeName(name);
   if (!cleanName) return { ok: false, error: 'Tên không hợp lệ.' };
   const c = chainOf(state, chain);
   const r = c[role];
+
+  const clientToken = typeof token === 'string' ? token.slice(0, 64) : '';
 
   // Reconnect / no-op nếu player đã tồn tại
   const existing = r.players.find(p => p.name === cleanName);
@@ -262,22 +290,27 @@ function addPlayer(state, socketId, name, chain, role) {
     if (existing.id === socketId) {
       return { ok: true, player: existing };
     }
-    // Khác socket nhưng player đang online → có thể user khác đang dùng tên này
-    if (existing.online) {
+    // Cùng trình duyệt → cho vào lại ngay, kể cả khi server chưa biết socket cũ đã mất
+    const sameBrowser = clientToken !== '' && playerTokens.get(existing) === clientToken;
+    // Khác socket, khác trình duyệt, đang online → có thể user khác đang dùng tên này
+    if (existing.online && !sameBrowser) {
       return { ok: false, error: 'Tên này đang online trong nhóm. Đổi tên khác.' };
     }
-    // Offline → reconnect: gắn socket mới
+    // Reconnect: gắn socket mới
     const oldId = existing.id;
     existing.id = socketId;
     existing.online = true;
+    if (clientToken) playerTokens.set(existing, clientToken);
     if (r.captainId === oldId) r.captainId = socketId;
     return { ok: true, player: existing, reconnected: true };
   }
 
+  if (state.status === 'ended') return { ok: false, error: 'Game đã kết thúc.' };
   if (r.players.length >= MAX_PLAYERS_PER_GROUP) return { ok: false, error: `Vai này đã đủ ${MAX_PLAYERS_PER_GROUP} người.` };
   const isCaptain = r.players.length === 0;
   const player = { id: socketId, name: cleanName, chain, role, isCaptain, online: true, joinedAt: Date.now() };
   r.players.push(player);
+  if (clientToken) playerTokens.set(player, clientToken);
   if (isCaptain) r.captainId = player.id;
   return { ok: true, player };
 }
@@ -322,6 +355,7 @@ function findPlayer(state, socketId) {
 }
 
 function setSuggestion(state, socketId, value) {
+  if (state.status !== 'running') return;
   const found = findPlayer(state, socketId);
   if (!found || found.runtime.status !== 'deciding') return;
   const r = found.runtime;
@@ -330,6 +364,7 @@ function setSuggestion(state, socketId, value) {
 }
 
 function submitByCaptain(state, socketId, value) {
+  if (state.status !== 'running') return { ok: false, error: NOT_RUNNING_ERROR };
   const found = findPlayer(state, socketId);
   if (!found) return { ok: false, error: 'Không tìm thấy.' };
   if (!found.player.isCaptain) return { ok: false, error: 'Chỉ captain được chốt.' };
@@ -387,7 +422,7 @@ function rotateCaptainIfNeeded(state) {
 
 module.exports = {
   createGame, addPlayer, removePlayer, findPlayer,
-  setSuggestion, submitByCaptain, sendDemand, resetGame,
+  setSuggestion, submitByCaptain, sendDemand, endGame, resetGame,
   tick, addChatMessage, startGame, rotateCaptainIfNeeded,
   kickPlayer, sanitizeName, sanitizeChat, clampOrder,
   markPlayerOffline,

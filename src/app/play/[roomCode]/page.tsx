@@ -1,13 +1,15 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { getSocket } from '@/lib/socket-client';
+import { getSocket, getClientToken } from '@/lib/socket-client';
 import { useGameState } from '@/lib/useGame';
 import { RoleCard } from '@/components/RoleCard';
 import { ChatPanel } from '@/components/ChatPanel';
 import { StrategyPanel } from '@/components/StrategyPanel';
 import { HistoryTable } from '@/components/HistoryTable';
 import { TipsPanel } from '@/components/TipsPanel';
+import { ConnectionBanner } from '@/components/ConnectionBanner';
+import { MAX_PLAYERS_PER_GROUP } from '@/lib/types';
 import type { ChainKey, RoleKey } from '@/lib/types';
 
 interface PlayerSession {
@@ -28,23 +30,29 @@ export default function PlayPage() {
     if (s.roomCode !== roomCode) { router.push('/join'); return; }
     setSession(s);
 
-    // Auto reconnect — emit player:join để server gắn socket mới với player record cũ
+    // Auto reconnect — emit player:join để server gắn socket mới với player record cũ,
+    // cả lúc mở trang lẫn mỗi lần socket kết nối lại sau khi rớt mạng
     const socket = getSocket();
-    socket.emit('player:join', {
-      roomCode: s.roomCode, name: s.name, chain: s.chain, role: s.role,
-    }, (res: { ok: boolean; playerId?: string; error?: string }) => {
-      if (!res.ok) {
-        alert('Không vào lại được phòng: ' + (res.error || 'lỗi không rõ'));
-        sessionStorage.removeItem('bg_player');
-        router.push('/join');
-        return;
-      }
-      if (res.playerId) {
-        const updated = { ...s, playerId: res.playerId };
-        sessionStorage.setItem('bg_player', JSON.stringify(updated));
-        setSession(updated);
-      }
-    });
+    const rejoin = () => {
+      socket.emit('player:join', {
+        roomCode: s.roomCode, name: s.name, chain: s.chain, role: s.role, token: getClientToken(),
+      }, (res: { ok: boolean; playerId?: string; error?: string }) => {
+        if (!res.ok) {
+          alert('Không vào lại được phòng: ' + (res.error || 'lỗi không rõ'));
+          sessionStorage.removeItem('bg_player');
+          router.push('/join');
+          return;
+        }
+        if (res.playerId) {
+          const updated = { ...s, playerId: res.playerId };
+          sessionStorage.setItem('bg_player', JSON.stringify(updated));
+          setSession(updated);
+        }
+      });
+    };
+    rejoin();
+    socket.on('connect', rejoin);
+    return () => { socket.off('connect', rejoin); };
   }, [roomCode, router]);
 
   useEffect(() => {
@@ -52,11 +60,12 @@ export default function PlayPage() {
     const handler = (msg: string) => {
       alert(msg || 'Bạn đã bị xoá khỏi phòng');
       sessionStorage.removeItem('bg_player');
-      router.push('/');
+      // Server đã ngắt socket này: tải lại trang để lần vào sau có socket mới
+      window.location.assign('/');
     };
     socket.on('kicked', handler);
     return () => { socket.off('kicked', handler); };
-  }, [router]);
+  }, []);
 
   if (!session || !state) return <div className="p-8">Đang kết nối...</div>;
 
@@ -82,6 +91,14 @@ export default function PlayPage() {
 
   return (
     <div className="max-w-5xl mx-auto p-4">
+      <ConnectionBanner />
+      {state.noFactoryChains.includes(session.chain) && (
+        <div className="bg-blue-50 border border-blue-200 text-blue-900 text-sm rounded-lg p-3 mb-4">
+          Chuỗi {session.chain} không có Nhà máy. {session.role === 'distributor'
+            ? 'Bạn là vai cuối chuỗi: đặt bao nhiêu sẽ nhận đúng bấy nhiêu sau 2 tuần.'
+            : 'Phân phối là vai cuối chuỗi.'}
+        </div>
+      )}
       <header className={`bg-white rounded-xl shadow-sm p-5 mb-4 flex items-center justify-between flex-wrap gap-4 border-l-4 ${
         status === 'deciding' ? 'border-orange-500' : status === 'awaiting_upstream' ? 'border-yellow-500' : 'border-slate-300'
       }`}>
@@ -132,7 +149,7 @@ export default function PlayPage() {
             <h3 className="font-bold mb-3 text-lg flex items-center gap-2">
               {status === 'deciding' ? '✍️' : status === 'awaiting_upstream' ? '⏸' : '💤'} Lệnh đặt
             </h3>
-            {status === 'idle' && (
+            {status === 'idle' && !gameOver && (
               <div className="bg-slate-50 border border-slate-200 p-4 rounded-lg text-center">
                 <div className="text-4xl mb-2">⏳</div>
                 <div className="text-sm text-slate-600">Đang chờ đơn hàng...</div>
@@ -205,7 +222,7 @@ export default function PlayPage() {
               <div className="text-xs text-gray-500">
                 <span className="text-emerald-600 font-semibold">{myRole.players.filter(p => p.online).length}</span>
                 <span> online</span>
-                <span className="text-gray-400"> / {myRole.players.length} tổng / max 8</span>
+                <span className="text-gray-400"> / {myRole.players.length} tổng / max {MAX_PLAYERS_PER_GROUP}</span>
               </div>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
@@ -231,7 +248,7 @@ export default function PlayPage() {
                 );
               })}
               {/* Empty slots */}
-              {Array.from({ length: Math.max(0, 8 - myRole.players.length) }).map((_, i) => (
+              {Array.from({ length: Math.max(0, MAX_PLAYERS_PER_GROUP - myRole.players.length) }).map((_, i) => (
                 <div key={`empty-${i}`} className="rounded-lg p-3 text-sm border-2 border-dashed border-gray-200 text-center text-gray-300 flex items-center justify-center">
                   Trống
                 </div>

@@ -1,7 +1,7 @@
 // Simple service worker for PWA — cache static assets.
 // Socket.io traffic không cache.
 
-const CACHE_NAME = 'beer-game-v1';
+const CACHE_NAME = 'beer-game-v2';
 const PRECACHE_URLS = ['/', '/join', '/manifest.json'];
 
 self.addEventListener('install', (event) => {

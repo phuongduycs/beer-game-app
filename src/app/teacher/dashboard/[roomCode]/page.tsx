@@ -1,12 +1,13 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { getSocket } from '@/lib/socket-client';
 import { useGameState } from '@/lib/useGame';
 import { RoleCard } from '@/components/RoleCard';
 import { BullwhipChart } from '@/components/BullwhipChart';
+import { ConnectionBanner } from '@/components/ConnectionBanner';
 import type { ChainKey, RoleKey, ChainRuntime, GameState, Player } from '@/lib/types';
-import { ROLES } from '@/lib/types';
+import { ROLES, rolesOf, rankingRoles } from '@/lib/types';
 import { exportGameToCSV, downloadCSV } from '@/lib/exportGame';
 
 type TabKey = 'overview' | 'members' | ChainKey;
@@ -18,18 +19,54 @@ export default function TeacherDashboard() {
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
   const [demandInputs, setDemandInputs] = useState<Record<string, number>>({});
   const [authError, setAuthError] = useState('');
+  const [needPassword, setNeedPassword] = useState(false);
+  const [passwordInput, setPasswordInput] = useState('');
 
-  useEffect(() => {
-    const password = localStorage.getItem('bg_teacher_pw') || '';
-    socket.emit('teacher:join', { roomCode, password }, (res: { ok: boolean; error?: string }) => {
+  const joinRoom = useCallback(() => {
+    const password = sessionStorage.getItem('bg_teacher_pw') || localStorage.getItem('bg_teacher_pw') || '';
+    socket.emit('teacher:join', { roomCode, password }, (res: { ok: boolean; error?: string; needPassword?: boolean }) => {
+      setNeedPassword(!!res.needPassword);
       if (!res.ok) {
         setAuthError(res.error || 'Không vào được phòng');
       } else {
+        setAuthError('');
         // Lưu room code để landing page nhớ
         localStorage.setItem('bg_teacher_room', roomCode);
       }
     });
   }, [roomCode, socket]);
+
+  // Vào phòng khi mở trang và mỗi lần socket kết nối lại sau khi rớt mạng
+  useEffect(() => {
+    joinRoom();
+    socket.on('connect', joinRoom);
+    return () => { socket.off('connect', joinRoom); };
+  }, [joinRoom, socket]);
+
+  function submitPassword() {
+    sessionStorage.setItem('bg_teacher_pw', passwordInput);
+    joinRoom();
+  }
+
+  if (needPassword) {
+    return (
+      <div className="max-w-md mx-auto p-8">
+        <div className="bg-white rounded-2xl shadow-lg p-6 space-y-3">
+          <div className="font-bold text-lg">🔒 Nhập password giảng viên</div>
+          <div className="text-sm text-gray-600">Phòng {roomCode}</div>
+          <input type="password" value={passwordInput}
+            onChange={e => setPasswordInput(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && submitPassword()}
+            className="w-full border border-gray-300 rounded-lg px-3 py-3 text-lg" />
+          {authError && <div className="text-sm text-red-700">{authError}</div>}
+          <button onClick={submitPassword}
+            className="w-full bg-purple-600 text-white font-semibold py-3 rounded-lg hover:bg-purple-700">
+            Vào dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (authError) {
     return (
@@ -60,7 +97,9 @@ export default function TeacherDashboard() {
   function exportResults() {
     if (!state) return;
     const csv = exportGameToCSV(state);
-    const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}-${pad(now.getMinutes())}`;
     downloadCSV(`beer-game-${roomCode}-${stamp}.csv`, csv);
   }
   function sendDemand(chain: ChainKey, value: number) {
@@ -74,7 +113,7 @@ export default function TeacherDashboard() {
 
   const totalByChain: Record<string, number> = {};
   activeChains.forEach(k => {
-    totalByChain[k] = ROLES.reduce((s, r) => s + state.chains[k][r].cost, 0);
+    totalByChain[k] = rankingRoles(state).reduce((s, r) => s + state.chains[k][r].cost, 0);
   });
   const grandTotal = Object.values(totalByChain).reduce((a, b) => a + b, 0);
   const totalPlayers = activeChains.reduce((sum, k) =>
@@ -84,12 +123,13 @@ export default function TeacherDashboard() {
 
   return (
     <div className="max-w-[1400px] mx-auto p-4">
+      <ConnectionBanner />
       {/* Header */}
       <header className="bg-white rounded-xl shadow-sm p-5 mb-4 flex items-center gap-6 flex-wrap border-l-4 border-purple-500">
         <div>
           <div className="text-xs text-gray-500 uppercase tracking-wide">Mã phòng</div>
           <div className="font-mono font-bold text-3xl text-purple-700 tracking-wider">{roomCode}</div>
-          <div className="text-xs text-gray-400">{activeChains.length} chuỗi • Tối đa {activeChains.length * 4 * 8} SV</div>
+          <div className="text-xs text-gray-400">{activeChains.length} chuỗi • Tối đa {activeChains.reduce((s, k) => s + rolesOf(state, k).length, 0) * 10} SV{state.noFactoryChains.length > 0 && ` • Chuỗi ${state.noFactoryChains.join(', ')} không có Nhà máy, CP chỉ so 3 vai`}</div>
         </div>
         <div>
           <div className="text-xs text-gray-500 uppercase tracking-wide">Trạng thái</div>
@@ -111,16 +151,16 @@ export default function TeacherDashboard() {
           </button>
         )}
         {!lobby && !gameOver && (
-          <>
-            <button onClick={endGame}
-              className="bg-orange-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-orange-700 shadow-md">
-              🏁 Kết thúc
-            </button>
-            <button onClick={reset}
-              className="bg-rose-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-rose-700 shadow-md">
-              ⟲ Reset
-            </button>
-          </>
+          <button onClick={endGame}
+            className="bg-orange-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-orange-700 shadow-md">
+            🏁 Kết thúc
+          </button>
+        )}
+        {!lobby && (
+          <button onClick={reset}
+            className="bg-rose-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-rose-700 shadow-md">
+            ⟲ Reset
+          </button>
         )}
         <button onClick={exportResults}
           className="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700 shadow-md">
@@ -184,7 +224,7 @@ function AllMembers({ state, activeChains, kick, totalPlayers, onlinePlayers }: 
   // Dòng phẳng cho table view
   const allRows: { chain: ChainKey; role: RoleKey; player: import('@/lib/types').Player; idx: number }[] = [];
   activeChains.forEach(chain => {
-    ROLES.forEach(role => {
+    rolesOf(state, chain).forEach(role => {
       state.chains[chain][role].players.forEach((player, idx) => {
         allRows.push({ chain, role, player, idx: idx + 1 });
       });
@@ -225,7 +265,7 @@ function AllMembers({ state, activeChains, kick, totalPlayers, onlinePlayers }: 
             <div key={chain} className="bg-white rounded-xl shadow-sm p-4">
               <div className="font-bold text-lg mb-3 text-purple-700">🔗 Chuỗi {chain}</div>
               <div className="space-y-3">
-                {ROLES.map(role => {
+                {rolesOf(state, chain).map(role => {
                   const r = state.chains[chain][role];
                   const onlineCount = r.players.filter(p => p.online).length;
                   return (
@@ -340,6 +380,7 @@ function ChainPanel({
   const retailerBusy = c.retailer.status !== 'idle' || c.retailer.inbox != null;
   const demands = state.demands[chain];
   const ICONS = { retailer: '🏪', wholesaler: '🏢', distributor: '🚚', factory: '🏭' } as const;
+  const roles = rolesOf(state, chain);
   const statusColor = {
     idle: 'bg-slate-100 text-slate-600 border-slate-200',
     deciding: 'bg-orange-100 text-orange-800 border-orange-300',
@@ -354,7 +395,7 @@ function ChainPanel({
       </div>
 
       <div className="flex items-stretch gap-0.5 mb-3">
-        {ROLES.map((r, i) => {
+        {roles.map((r, i) => {
           const rt = c[r];
           return (
             <div key={r} className="flex items-stretch flex-1">
@@ -366,7 +407,7 @@ function ChainPanel({
                 </div>
                 {rt.inbox && <div className="mt-0.5 text-xs font-bold">📨{rt.inbox.value}</div>}
               </div>
-              {i < ROLES.length - 1 && <div className="flex items-center px-0.5 text-gray-300">→</div>}
+              {i < roles.length - 1 && <div className="flex items-center px-0.5 text-gray-300">→</div>}
             </div>
           );
         })}
@@ -402,7 +443,7 @@ function ChainDetail({ chain, state, kick }: { chain: ChainKey; state: GameState
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {ROLES.map(r => (
+        {rolesOf(state, chain).map(r => (
           <div key={r} className="space-y-2">
             <RoleCard role={r} runtime={c[r]} />
             <PlayersList players={c[r].players} kick={kick} />

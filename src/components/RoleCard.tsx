@@ -87,7 +87,7 @@ export function RoleCard({
             ? <>Chuẩn bị tuần <b>1</b></>
             : <>Đã xong tuần <b className="text-gray-700">{runtime.week}</b></>}
         </span>
-        <span className="text-slate-400">👥 {runtime.players.length}/8</span>
+        <span className="text-slate-400">👥 {runtime.players.length}/10</span>
       </div>
 
       {/* Inbox hiển thị lớn khi deciding và không compact */}
