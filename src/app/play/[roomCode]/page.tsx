@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { getSocket, getClientToken } from '@/lib/socket-client';
+import { getSocket, getClientToken, serverNow } from '@/lib/socket-client';
 import { useGameState } from '@/lib/useGame';
 import { RoleCard } from '@/components/RoleCard';
 import { ChatPanel } from '@/components/ChatPanel';
@@ -77,7 +77,7 @@ export default function PlayPage() {
   const socket = getSocket();
   const status = myRole.status;
   const canSubmit = isCaptain && status === 'deciding' && !!myRole.inbox;
-  const timeLeft = myRole.deadline ? Math.max(0, Math.ceil((myRole.deadline - Date.now()) / 1000)) : 0;
+  const timeLeft = myRole.deadline ? Math.max(0, Math.ceil((myRole.deadline - serverNow()) / 1000)) : 0;
 
   function suggest() { socket.emit('player:suggest', { value: pending }); }
   function submit() {

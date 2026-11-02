@@ -306,17 +306,42 @@ function addPlayer(state, socketId, name, chain, role, token) {
     existing.online = true;
     if (clientToken) playerTokens.set(existing, clientToken);
     if (r.captainId === oldId) r.captainId = socketId;
+    leaveOtherSeats(state, socketId, clientToken, existing);
     return { ok: true, player: existing, reconnected: true };
   }
 
   if (state.status === 'ended') return { ok: false, error: 'Game đã kết thúc.' };
   if (r.players.length >= MAX_PLAYERS_PER_GROUP) return { ok: false, error: `Vai này đã đủ ${MAX_PLAYERS_PER_GROUP} người.` };
+  leaveOtherSeats(state, socketId, clientToken);
   const isCaptain = r.players.length === 0;
   const player = { id: socketId, name: cleanName, chain, role, isCaptain, online: true, joinedAt: Date.now() };
   r.players.push(player);
   if (clientToken) playerTokens.set(player, clientToken);
   if (isCaptain) r.captainId = player.id;
   return { ok: true, player };
+}
+
+// Mỗi người chỉ giữ 1 chỗ trong phòng: đổi vai thì rời chỗ cũ, tránh chốt nhầm sang vai cũ.
+// Chỗ của tab khác đang online vẫn giữ, vì 1 trình duyệt có thể mở nhiều tab.
+function leaveOtherSeats(state, socketId, clientToken, keep = null) {
+  for (const chain of activeChainsOf(state)) {
+    const c = chainOf(state, chain);
+    for (const role of ROLES) {
+      for (const p of [...c[role].players]) {
+        if (p === keep) continue;
+        const sameBrowser = clientToken !== '' && playerTokens.get(p) === clientToken;
+        if (p.id === socketId || (sameBrowser && !p.online)) removeSeat(c[role], p);
+      }
+    }
+  }
+}
+
+function removeSeat(r, player) {
+  r.players.splice(r.players.indexOf(player), 1);
+  if (player.isCaptain && r.players.length > 0) {
+    r.players[0].isCaptain = true;
+    r.captainId = r.players[0].id;
+  } else if (r.players.length === 0) r.captainId = null;
 }
 
 function markPlayerOffline(state, socketId) {
@@ -334,15 +359,8 @@ function removePlayer(state, socketId) {
     const c = chainOf(state, chain);
     for (const role of ROLES) {
       const r = c[role];
-      const idx = r.players.findIndex(p => p.id === socketId);
-      if (idx >= 0) {
-        const wasCaptain = r.players[idx].isCaptain;
-        r.players.splice(idx, 1);
-        if (wasCaptain && r.players.length > 0) {
-          r.players[0].isCaptain = true;
-          r.captainId = r.players[0].id;
-        } else if (r.players.length === 0) r.captainId = null;
-      }
+      const player = r.players.find(p => p.id === socketId);
+      if (player) removeSeat(r, player);
     }
   }
 }

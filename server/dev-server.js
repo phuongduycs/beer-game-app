@@ -2,7 +2,7 @@
 const { createServer } = require('http');
 const next = require('next');
 const { Server } = require('socket.io');
-const { nanoid } = require('nanoid');
+const { customAlphabet } = require('nanoid');
 
 const dev = process.env.NODE_ENV !== 'production';
 const port = parseInt(process.env.PORT || '3000', 10);
@@ -32,6 +32,28 @@ app.prepare().then(() => {
       else io.to(code).emit('state:tick', { at: Date.now() });
     }
   }, 1000);
+
+  // Không dùng 0/O, 1/I và dấu gạch để SV gõ đúng khi nhìn trên máy chiếu
+  const randomRoomCode = customAlphabet('23456789ABCDEFGHJKLMNPQRSTUVWXYZ', 6);
+  function newRoomCode() {
+    let code = randomRoomCode();
+    while (games.has(code)) code = randomRoomCode();
+    return code;
+  }
+  // Cùng 1 tab có thể chuyển phòng: rời phòng cũ để không nhận trạng thái lẫn giữa 2 phòng
+  function enterRoom(socket, roomCode) {
+    const oldCode = socket.data.roomCode;
+    if (oldCode && oldCode !== roomCode) {
+      socket.leave(oldCode);
+      const oldState = games.get(oldCode);
+      if (oldState) {
+        engine.removePlayer(oldState, socket.id);
+        broadcastState(oldCode);
+      }
+    }
+    socket.join(roomCode);
+    socket.data.roomCode = roomCode;
+  }
 
   // Tra theo phòng của socket: cùng 1 tab có thể đã tạo nhiều phòng
   function gameByTeacher(socket) {
@@ -75,12 +97,11 @@ app.prepare().then(() => {
       if (required && password !== required) {
         return cb && cb({ ok: false, error: 'Sai password giảng viên.' });
       }
-      const roomCode = nanoid(6).toUpperCase();
+      const roomCode = newRoomCode();
       const state = engine.createGame(roomCode, chainCount, totalWeeks, 0, noFactoryCount, decisionSeconds);
       state.teacherSocketId = socket.id;
       games.set(roomCode, state);
-      socket.join(roomCode);
-      socket.data.roomCode = roomCode;
+      enterRoom(socket, roomCode);
       cb && cb({ ok: true, roomCode });
       broadcastState(roomCode);
     }));
@@ -93,8 +114,7 @@ app.prepare().then(() => {
       const state = games.get(roomCode);
       if (!state) return cb && cb({ ok: false, error: 'Phòng không tồn tại hoặc đã hết hạn.' });
       state.teacherSocketId = socket.id;
-      socket.join(roomCode);
-      socket.data.roomCode = roomCode;
+      enterRoom(socket, roomCode);
       cb && cb({ ok: true });
       broadcastState(roomCode);
     }));
@@ -145,7 +165,7 @@ app.prepare().then(() => {
       const c = state.chains[chain];
       if (!c) return;
       const r = c[role];
-      if (!r) return;
+      if (!r || !r.players.some(p => p.id === playerId)) return;
       r.players.forEach(p => (p.isCaptain = p.id === playerId));
       r.captainId = playerId;
       broadcastState(state.roomCode);
@@ -156,8 +176,7 @@ app.prepare().then(() => {
       if (!state) return cb({ ok: false, error: 'Mã phòng không tồn tại.' });
       const result = engine.addPlayer(state, socket.id, name, chain, role, token);
       if (!result.ok) return cb({ ok: false, error: result.error });
-      socket.join(roomCode);
-      socket.data.roomCode = roomCode;
+      enterRoom(socket, roomCode);
       cb({ ok: true, playerId: socket.id });
       broadcastState(roomCode);
     }));

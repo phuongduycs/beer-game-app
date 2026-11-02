@@ -27,7 +27,7 @@ export default function TeacherCreate() {
   const [loading, setLoading] = useState(false);
   const [chainCount, setChainCount] = useState(2);
   const [noFactoryPicked, setNoFactoryPicked] = useState(0);
-  const [totalWeeks, setTotalWeeks] = useState(30);
+  const [totalWeeks, setTotalWeeks] = useState(10);
   const [decisionSeconds, setDecisionSeconds] = useState(120);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');

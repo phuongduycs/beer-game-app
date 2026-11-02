@@ -1,6 +1,7 @@
 'use client';
 import type { RoleKey, RoleRuntime } from '@/lib/types';
 import { ROLE_LABELS, arrivingThisWeek, formatClock } from '@/lib/types';
+import { serverNow } from '@/lib/socket-client';
 
 const COLORS: Record<RoleKey, { border: string; text: string; bg: string; ring: string }> = {
   retailer: { border: 'border-blue-500', text: 'text-blue-600', bg: 'bg-blue-50', ring: 'ring-blue-200' },
@@ -21,13 +22,13 @@ const STATUS_BADGE: Record<string, { label: string; cls: string; icon: string }>
 
 function formatTimer(deadline: number | null): string {
   if (!deadline) return '';
-  const s = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+  const s = Math.max(0, Math.ceil((deadline - serverNow()) / 1000));
   return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
 }
 
 function timerRatio(deadline: number | null, decisionSeconds: number): number {
   if (!deadline) return 0;
-  return Math.max(0, Math.min(1, (deadline - Date.now()) / (decisionSeconds * 1000)));
+  return Math.max(0, Math.min(1, (deadline - serverNow()) / (decisionSeconds * 1000)));
 }
 
 export function RoleCard({

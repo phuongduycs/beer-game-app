@@ -111,6 +111,10 @@ export default function TeacherDashboard() {
     if (confirm(`Kick ${playerName} khỏi phòng?`)) socket.emit('teacher:kickPlayer', { playerId });
   }
 
+  function setCaptain(chain: ChainKey, role: RoleKey, playerId: string, playerName: string) {
+    if (confirm(`Chuyển nhóm trưởng cho ${playerName}?`)) socket.emit('teacher:setCaptain', { chain, role, playerId });
+  }
+
   const totalByChain: Record<string, number> = {};
   activeChains.forEach(k => {
     totalByChain[k] = rankingRoles(state).reduce((s, r) => s + state.chains[k][r].cost, 0);
@@ -199,20 +203,21 @@ export default function TeacherDashboard() {
 
       {/* All members tab */}
       {activeTab === 'members' && (
-        <AllMembers state={state} activeChains={activeChains} kick={kick} totalPlayers={totalPlayers} onlinePlayers={onlinePlayers} />
+        <AllMembers state={state} activeChains={activeChains} kick={kick} setCaptain={setCaptain} totalPlayers={totalPlayers} onlinePlayers={onlinePlayers} />
       )}
 
       {/* Single chain detail */}
       {activeTab !== 'overview' && activeTab !== 'members' && (
-        <ChainDetail chain={activeTab as ChainKey} state={state} kick={kick} />
+        <ChainDetail chain={activeTab as ChainKey} state={state} kick={kick} setCaptain={setCaptain} />
       )}
     </div>
   );
 }
 
-function AllMembers({ state, activeChains, kick, totalPlayers, onlinePlayers }: {
+function AllMembers({ state, activeChains, kick, setCaptain, totalPlayers, onlinePlayers }: {
   state: GameState; activeChains: ChainKey[];
   kick: (id: string, name: string) => void;
+  setCaptain: SetCaptain;
   totalPlayers: number; onlinePlayers: number;
 }) {
   const ROLE_ICONS = { retailer: '🏪', wholesaler: '🏢', distributor: '🚚', factory: '🏭' } as const;
@@ -290,10 +295,18 @@ function AllMembers({ state, activeChains, kick, totalPlayers, onlinePlayers }: 
                                 {p.isCaptain && <span title="Captain" className="flex-shrink-0">👑</span>}
                                 <span className="break-words font-medium">{p.name}</span>
                               </div>
-                              <button onClick={() => kick(p.id, p.name)}
-                                className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 text-xs px-2 py-0.5 rounded flex-shrink-0">
-                                Kick
-                              </button>
+                              <div className="flex items-center gap-1 flex-shrink-0">
+                                {!p.isCaptain && (
+                                  <button onClick={() => setCaptain(chain, role, p.id, p.name)}
+                                    className="text-purple-600 hover:text-purple-800 hover:bg-purple-50 text-xs px-2 py-0.5 rounded">
+                                    👑 Captain
+                                  </button>
+                                )}
+                                <button onClick={() => kick(p.id, p.name)}
+                                  className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 text-xs px-2 py-0.5 rounded">
+                                  Kick
+                                </button>
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -357,6 +370,8 @@ function AllMembers({ state, activeChains, kick, totalPlayers, onlinePlayers }: 
     </div>
   );
 }
+
+type SetCaptain = (chain: ChainKey, role: RoleKey, playerId: string, playerName: string) => void;
 
 function TabBtn({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
@@ -440,7 +455,7 @@ function ChainPanel({
   );
 }
 
-function ChainDetail({ chain, state, kick }: { chain: ChainKey; state: GameState; kick: (id: string, name: string) => void }) {
+function ChainDetail({ chain, state, kick, setCaptain }: { chain: ChainKey; state: GameState; kick: (id: string, name: string) => void; setCaptain: SetCaptain }) {
   const c = state.chains[chain];
   const demands = state.demands[chain];
   return (
@@ -449,7 +464,7 @@ function ChainDetail({ chain, state, kick }: { chain: ChainKey; state: GameState
         {rolesOf(state, chain).map(r => (
           <div key={r} className="space-y-2">
             <RoleCard role={r} runtime={c[r]} decisionSeconds={state.decisionSeconds} />
-            <PlayersList players={c[r].players} kick={kick} />
+            <PlayersList players={c[r].players} kick={kick} setCaptain={(id, name) => setCaptain(chain, r, id, name)} />
           </div>
         ))}
       </div>
@@ -460,7 +475,7 @@ function ChainDetail({ chain, state, kick }: { chain: ChainKey; state: GameState
   );
 }
 
-function PlayersList({ players, kick }: { players: Player[]; kick: (id: string, name: string) => void }) {
+function PlayersList({ players, kick, setCaptain }: { players: Player[]; kick: (id: string, name: string) => void; setCaptain: (id: string, name: string) => void }) {
   if (players.length === 0) return <div className="bg-white rounded p-2 text-xs text-gray-400 text-center">Chưa có SV</div>;
   return (
     <div className="bg-white rounded p-2">
@@ -472,10 +487,18 @@ function PlayersList({ players, kick }: { players: Player[]; kick: (id: string, 
               {p.isCaptain && '👑 '}
               {p.name}
             </span>
-            <button onClick={() => kick(p.id, p.name)}
-              className="text-rose-600 hover:text-rose-800 px-2 py-0.5 rounded hover:bg-rose-50">
-              Kick
-            </button>
+            <div className="flex items-center gap-1">
+              {!p.isCaptain && (
+                <button onClick={() => setCaptain(p.id, p.name)}
+                  className="text-purple-600 hover:text-purple-800 px-2 py-0.5 rounded hover:bg-purple-50">
+                  👑 Captain
+                </button>
+              )}
+              <button onClick={() => kick(p.id, p.name)}
+                className="text-rose-600 hover:text-rose-800 px-2 py-0.5 rounded hover:bg-rose-50">
+                Kick
+              </button>
+            </div>
           </div>
         ))}
       </div>
