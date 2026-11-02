@@ -129,7 +129,7 @@ export default function TeacherDashboard() {
         <div>
           <div className="text-xs text-gray-500 uppercase tracking-wide">Mã phòng</div>
           <div className="font-mono font-bold text-3xl text-purple-700 tracking-wider">{roomCode}</div>
-          <div className="text-xs text-gray-400">{activeChains.length} chuỗi • Tối đa {activeChains.reduce((s, k) => s + rolesOf(state, k).length, 0) * 10} SV{state.noFactoryChains.length > 0 && ` • Chuỗi ${state.noFactoryChains.join(', ')} không có Nhà máy, CP chỉ so 3 vai`}</div>
+          <div className="text-xs text-gray-400">{activeChains.length} chuỗi • {state.totalWeeks} tuần • Tối đa {activeChains.reduce((s, k) => s + rolesOf(state, k).length, 0) * 10} SV{state.noFactoryChains.length > 0 && ` • Chuỗi ${state.noFactoryChains.join(', ')} không có Nhà máy, CP chỉ so 3 vai`}</div>
         </div>
         <div>
           <div className="text-xs text-gray-500 uppercase tracking-wide">Trạng thái</div>
@@ -390,7 +390,10 @@ function ChainPanel({
   return (
     <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
       <div className="flex items-baseline justify-between mb-3">
-        <div className="font-bold text-lg text-purple-700">🔗 Chuỗi {chain}</div>
+        <div className="font-bold text-lg text-purple-700">
+          🔗 Chuỗi {chain}
+          <span className="ml-2 text-sm font-semibold text-gray-500">Tuần {c.retailer.week}/{state.totalWeeks}</span>
+        </div>
         <div className="text-sm">CP: <span className="font-bold text-rose-600">${total.toFixed(0)}</span></div>
       </div>
 
